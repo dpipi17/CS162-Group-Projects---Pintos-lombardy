@@ -57,12 +57,49 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  size_t argc = 0;
+  char * argv[512];
+
+  char *token, *save_ptr;
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)) {
+    argv[argc++] = token;
+  }
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+
+  if (success) {
+    char * argument_adresses[argc + 1];
+    
+    int i;
+    for (i = 0; i < argc; i++) {
+      if_.esp -= strlen(argv[i]) + 1;
+      memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
+      argument_adresses[i] = (char *) if_.esp;
+    }
+    argument_adresses[argc] = NULL;
+
+    // argument pointers ordered right to left
+    if_.esp -= (unsigned) (if_.esp) % 4 + (argc + 1) * sizeof(char *);
+    memcpy (if_.esp, argument_adresses, (argc + 1) * sizeof(char *));
+
+    // space for argv and argc
+    if_.esp -= 8;
+    // push argv
+    *((char ***) (if_.esp + 4)) = if_.esp + 8;
+    // push argc
+    *((int *) (if_.esp)) = argc;
+
+    // space for (fake) return adress 
+    if_.esp -= 4;
+    int ra = 0;
+    memcpy(if_.esp, &ra, 4);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);

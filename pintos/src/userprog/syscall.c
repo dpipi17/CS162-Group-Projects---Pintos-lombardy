@@ -6,6 +6,9 @@
 #include "threads/vaddr.h"
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
+#include "userprog/process.h"
+#include "userprog/pagedir.h"
+#include "lib/string.h"
 
 static void syscall_handler (struct intr_frame *);
 static struct lock filesystem_lock;
@@ -26,13 +29,13 @@ syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process 
 //
 syscall_desc_t syscall_table[] = {
   //Process System Calls
-  //{syscall_halt},
-  //{syscall_exit},
-  //{syscall_exec},
+  // {syscall_halt},
+  {syscall_exit},
+  {syscall_exec},
   {syscall_wait}, 
 
   //File System Calls
-  //{syscall_create},
+  {syscall_create},
   {syscall_remove},
   //{syscall_open},
   ///{syscall_filesize},
@@ -43,7 +46,7 @@ syscall_desc_t syscall_table[] = {
   //{syscall_close},
 
   //Practice System Call
-  //{syscall_practice},
+  {syscall_practice},
 };
 
 void
@@ -53,6 +56,24 @@ syscall_init (void)
   lock_init(&filesystem_lock);
 }
 
+bool is_valid_ptr(void* pptr, size_t size) {
+  char* ptr = *(char**)pptr;
+  if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size))
+    return false;
+  
+  struct thread* current_thread = thread_current();
+  uint32_t pd = current_thread->pagedir; // optional field #ifdef USERPROG
+
+  if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size) == NULL)
+    return false;
+
+  return true;
+}
+
+bool is_valid_str(char* ptr) {
+  size_t size = strlen(ptr); 
+  return is_valid_ptr(ptr, size); 
+}
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
@@ -98,4 +119,22 @@ void syscall_remove(struct intr_frame *f UNUSED){
   char* fileName = (char*)arguments[1];
   //TODO: Need Gega check
   f->eax = filesys_remove(fileName); 
+}
+
+void syscall_practice(struct intr_frame *f UNUSED) {
+  uint32_t *arguments = (uint32_t*)f->esp;
+  f->eax = arguments[1] + 1;
+}
+
+void syscall_exec(struct intr_frame *f UNUSED) {
+  uint32_t *arguments = (uint32_t*)f->esp;
+  char* cmd_line = (char*)arguments[1];
+  f->eax = process_execute(cmd_line);
+}
+
+void syscall_exit(struct intr_frame *f UNUSED) {
+  uint32_t *arguments = (uint32_t*)f->esp;
+  f->eax = arguments[1];
+  printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
+  thread_exit();
 }

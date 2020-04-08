@@ -91,9 +91,12 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
+    
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    struct list file_list;
+    int fd_counter;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -140,4 +143,13 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+//Our Structure to map "fd" and "struct file"
+struct file_node{
+    int fd;
+    struct file* file;
+    struct list_elem elem;
+}
 #endif /* threads/thread.h */
+
+

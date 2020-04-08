@@ -10,6 +10,8 @@
 #include "userprog/pagedir.h"
 #include "lib/string.h"
 
+
+
 static void syscall_handler (struct intr_frame *);
 static struct lock filesystem_lock;
 
@@ -38,7 +40,7 @@ syscall_desc_t syscall_table[] = {
   {syscall_create},
   {syscall_remove},
   //{syscall_open},
-  ///{syscall_filesize},
+  {syscall_filesize},
   //{syscall_read},
   //{syscall_write},
   //{syscall_seek},
@@ -48,6 +50,7 @@ syscall_desc_t syscall_table[] = {
   //Practice System Call
   {syscall_practice},
 };
+
 
 void
 syscall_init (void)
@@ -113,12 +116,57 @@ void syscall_create(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
-
+/* Deletes the file called fileName. 
+ * Returns true if successful, false otherwise
+ */
 void syscall_remove(struct intr_frame *f UNUSED){
+  lock_acquire(&filesystem_lock);
   uint32_t *arguments = (uint32_t*)f->esp;
   char* fileName = (char*)arguments[1];
-  //TODO: Need Gega check
-  f->eax = filesys_remove(fileName); 
+  //Check given argument - in this case: fileName
+  if(!is_valid_str(fileName)){
+      syscall_exit(f); //If argument is invalid kill process
+      //TODO need return something(error code) or not?
+  } else {
+      f->eax = filesys_remove(fileName); 
+  }
+  lock_release(&filesystem_lock);
+}
+
+/* Returns the size, in bytes, of the file open as fd
+ */
+void syscall_filesize(struct intr_frame *f UNUSED){
+  lock_acquire(&filesystem_lock);
+  uint32_t *arguments = (uint32_t*)f->esp;
+  int fd = (int)arguments[0];
+  struct file *file = getFileAccordingFD(fd);
+  f->eax = file_length (file);
+  lock_release(&filesystem_lock);
+}
+
+
+/* Returns the size, in bytes, of the file open as fd
+ */
+void syscall_filesize(struct intr_frame *f UNUSED){
+  lock_acquire(&filesystem_lock);
+
+  uint32_t *arguments = (uint32_t*)f->esp;
+  int fd = (int)arguments[0];
+  void* buffer = (void*) arguments[1];
+  unsigned size = (unsigned) arguments[2];
+  
+
+  if(fd == 0){ //Case when read from keybord  
+    int i;
+    for(i = 0; i < size; i++){
+      buffer[i] = input_getc(); //აქ რაღაც კასტის თემა მეშლება ალბათ
+    }
+    f->eax = size;
+  } else {
+    struct file *file = getFileAccordingFD(fd);
+    f->eax = file_read(file, buffer, size);
+  }
+  lock_release(&filesystem_lock);
 }
 
 void syscall_practice(struct intr_frame *f UNUSED) {
@@ -134,7 +182,13 @@ void syscall_exec(struct intr_frame *f UNUSED) {
 
 void syscall_exit(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
-  f->eax = arguments[1];
+  f->eax = arguments[1]; 
   printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
   thread_exit();
+}
+
+
+struct file* getFileAccordingFD(int fd){
+
+  return NULL;
 }

@@ -12,8 +12,7 @@
 #include "lib/kernel/list.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-
-
+#include "threads/malloc.h"
 
 struct file* get_file_from_fd(int fd);
 static void syscall_handler (struct intr_frame *);
@@ -35,7 +34,7 @@ syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process 
 //
 syscall_desc_t syscall_table[] = {
   //Process System Calls
-  // {syscall_halt},
+  {syscall_halt},
   {syscall_exit},
   {syscall_exec},
   {syscall_wait}, 
@@ -43,12 +42,12 @@ syscall_desc_t syscall_table[] = {
   //File System Calls
   {syscall_create},
   {syscall_remove},
-  //{syscall_open},
+  {syscall_open},
   {syscall_filesize},
   //{syscall_read},
   //{syscall_write},
   //{syscall_seek},
-  //{syscall_tell},
+  // {syscall_tell},
   //{syscall_close},
 
   //Practice System Call
@@ -100,34 +99,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   int syscallNumber = *(int*)f->esp;
   syscall_table[syscallNumber].fun(f); 
-  /* Ditosi
-  if (args[0] == SYS_EXIT) {
-    f->eax = args[1];
-    printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
-    thread_exit();
-  }else if (args[0] == SYS_HALT){
-    shutdown_power_off();
-  }else if(args[0] == SYS_CREATE){
-    create(f , (char* )args[1], (unsigned) args[2]);
-  }
-  */
 }
-
 
 void syscall_wait(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
   tid_t tid = (tid_t)arguments[1];
   f->esp = process_wait(tid);
-}
-
-
-void syscall_create(struct intr_frame *f){
-  lock_acquire(&filesystem_lock);
-  uint32_t *arguments = (uint32_t*)f->esp;
-  char* file = (char*)arguments[1];
-  unsigned initial_size = (unsigned) arguments[2];
-  f->eax = filesys_create(file, initial_size);
-  lock_release(&filesystem_lock);
 }
 
 /* Deletes the file called fileName. 
@@ -213,4 +190,44 @@ struct file* get_file_from_fd(int givenFd){
     }
   }
   return NULL;
+}
+
+
+void syscall_halt(struct intr_frame *f UNUSED){
+  shutdown_power_off();
+}
+
+void syscall_open(struct intr_frame *f UNUSED){
+  if(!is_valid_ptr(f->esp , 2 * 4)) thread_exit();
+  uint32_t *arguments = (uint32_t*)f->esp;
+  char* filename = arguments[1];
+  if(!is_valid_str(filename)) thread_exit();
+  
+  lock_acquire(&filesystem_lock);
+  int fd = thread_current()->fd_counter++;
+  struct file* file = filesys_open(filename);
+  if(file == NULL){
+    lock_release(&filesystem_lock);
+    thread_exit();
+  }
+  struct file_node* new_node = malloc(sizeof(struct file_node));
+  struct list_elem* elem = malloc(sizeof(struct list_elem));
+  list_push_back(&(thread_current()->file_list) , elem);
+  new_node->fd = fd;
+  new_node->file = file;
+  new_node->elem = *elem;
+  f->eax = fd;
+  lock_release(&filesystem_lock);
+}
+
+
+void syscall_create(struct intr_frame *f){
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
+  lock_acquire(&filesystem_lock);
+  uint32_t *arguments = (uint32_t*)f->esp;
+  char* file = (char*)arguments[1];
+  unsigned initial_size = (unsigned) arguments[2];
+  if(!is_valid_str(file)) thread_exit();
+  f->eax = filesys_create(file, initial_size);
+  lock_release(&filesystem_lock);
 }

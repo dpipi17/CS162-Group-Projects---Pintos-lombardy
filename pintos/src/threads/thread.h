@@ -149,7 +149,7 @@ struct file_node{
     int fd;
     struct file* file;
     struct list_elem elem;
-}
+};
 #endif /* threads/thread.h */
 
 

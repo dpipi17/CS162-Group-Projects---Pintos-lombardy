@@ -1,0 +1,9 @@
+{
+    "C_Cpp.errorSquiggles": "Disabled",
+    "files.associations": {
+        "atomic": "cpp",
+        "cstdint": "cpp",
+        "pagedir.h": "c",
+        "filesys.h": "c"
+    }
+}

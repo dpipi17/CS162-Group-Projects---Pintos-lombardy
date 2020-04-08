@@ -9,9 +9,13 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #include "lib/string.h"
+#include "filesys/filesys.c"
+#include "filesys/filesys.h"
+#include "filesys/file.c"
+#include "filesys/file.h"
 
 
-
+struct file* getFileAccordingFD(int fd);
 static void syscall_handler (struct intr_frame *);
 static struct lock filesystem_lock;
 
@@ -140,26 +144,25 @@ void syscall_filesize(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
   struct file *file = getFileAccordingFD(fd);
-  f->eax = file_length (file);
+  f->eax = file_length(file);
   lock_release(&filesystem_lock);
 }
 
 
 /* Returns the size, in bytes, of the file open as fd
  */
-void syscall_filesize(struct intr_frame *f UNUSED){
+void syscall_read(struct intr_frame *f UNUSED){
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
   void* buffer = (void*) arguments[1];
   unsigned size = (unsigned) arguments[2];
-  
 
   if(fd == 0){ //Case when read from keybord  
-    int i;
+    unsigned i;
     for(i = 0; i < size; i++){
-      buffer[i] = input_getc(); //აქ რაღაც კასტის თემა მეშლება ალბათ
+      //buffer[i] = input_getc(); //??? TODO: Is return correct? Return char?
     }
     f->eax = size;
   } else {
@@ -187,8 +190,17 @@ void syscall_exit(struct intr_frame *f UNUSED) {
   thread_exit();
 }
 
+/* Return file according to it fd
+ */
+struct file* getFileAccordingFD(int givenFd){
+  struct list_elem *e; 
+  struct list curr_list = thread_current()->file_list;
 
-struct file* getFileAccordingFD(int fd){
-
+  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+    struct file_node *currFile = list_entry (e, struct MyFile, elem); //One of my files
+    if(currFile->fd == givenFd){ 
+      return currFile->file;
+    }
+  }
   return NULL;
 }

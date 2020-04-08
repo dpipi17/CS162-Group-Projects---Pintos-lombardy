@@ -4,3 +4,5 @@
 *~
 .DS_Store
 pintos/**/build
+pintos/.vscode/settings.json
+.vscode/settings.json

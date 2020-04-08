@@ -9,10 +9,10 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #include "lib/string.h"
-#include "filesys/filesys.c"
+#include "lib/kernel/list.h"
 #include "filesys/filesys.h"
-#include "filesys/file.c"
 #include "filesys/file.h"
+
 
 
 struct file* getFileAccordingFD(int fd);
@@ -197,7 +197,7 @@ struct file* getFileAccordingFD(int givenFd){
   struct list curr_list = thread_current()->file_list;
 
   for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
-    struct file_node *currFile = list_entry (e, struct MyFile, elem); //One of my files
+    struct file_node *currFile = list_entry (e, struct file_node, elem); //One of my files
     if(currFile->fd == givenFd){ 
       return currFile->file;
     }

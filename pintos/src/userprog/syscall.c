@@ -71,8 +71,8 @@ bool is_valid_ptr(void* pptr, size_t size) {
 }
 
 bool is_valid_str(char* ptr) {
-  size_t size = strlen(ptr); 
-  return is_valid_ptr(ptr, size); 
+  size_t len = strlen(ptr); 
+  return is_valid_ptr(ptr, len + 1); 
 }
 
 static void

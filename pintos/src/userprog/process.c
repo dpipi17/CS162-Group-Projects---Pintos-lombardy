@@ -18,6 +18,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
@@ -41,10 +42,15 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  size_t executable_name_size = strcspn (file_name, " ");
+  char * executable_name = malloc ((executable_name_size + 1) * sizeof (char));
+  strlcpy (executable_name, file_name, executable_name_size + 1);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (executable_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+  free(executable_name);
   return tid;
 }
 
@@ -65,6 +71,7 @@ start_process (void *file_name_)
         token = strtok_r (NULL, " ", &save_ptr)) {
     argv[argc++] = token;
   }
+  argv[argc] = NULL;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);

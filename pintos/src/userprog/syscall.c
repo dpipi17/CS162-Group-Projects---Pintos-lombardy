@@ -65,13 +65,13 @@ syscall_init (void)
 
 bool is_valid_ptr(void* pptr, size_t size) {
   char* ptr = *(char**)pptr;
-  if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size))
+  if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size - 1))
     return false;
   
   struct thread* current_thread = thread_current();
   uint32_t pd = current_thread->pagedir; // optional field #ifdef USERPROG
 
-  if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size) == NULL)
+  if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size - 1) == NULL)
     return false;
 
   return true;
@@ -80,6 +80,16 @@ bool is_valid_ptr(void* pptr, size_t size) {
 bool is_valid_str(char* ptr) {
   size_t len = strlen(ptr); 
   return is_valid_ptr(ptr, len + 1); 
+}
+
+bool are_valid_args(uint32_t* ptr, size_t num_args) {
+  int i = 0;
+  for (i = 0; i < num_args; i++) {
+    if (!is_valid_ptr(ptr, sizeof(uint32_t)))
+      return false;
+    ptr++;
+  }
+  return true;
 }
 
 static void

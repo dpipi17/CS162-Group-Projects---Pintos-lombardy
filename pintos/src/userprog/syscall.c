@@ -44,11 +44,11 @@ syscall_desc_t syscall_table[] = {
   {syscall_remove},
   {syscall_open},
   {syscall_filesize},
-  //{syscall_read},
-  //{syscall_write},
-  //{syscall_seek},
-  // {syscall_tell},
-  //{syscall_close},
+  {syscall_read},
+  {syscall_write},
+  {syscall_seek},
+  {syscall_tell},
+  {syscall_close},
 
   //Practice System Call
   {syscall_practice},
@@ -116,6 +116,7 @@ void syscall_remove(struct intr_frame *f UNUSED){
   char* fileName = (char*)arguments[1];
   //Check given argument - in this case: fileName
   if(!is_valid_str(fileName)){
+      lock_release(&filesystem_lock);
       syscall_exit(f); //If argument is invalid kill process
       //TODO need return something(error code) or not?
   } else {
@@ -192,7 +193,6 @@ struct file* get_file_from_fd(int givenFd){
   return NULL;
 }
 
-
 void syscall_halt(struct intr_frame *f UNUSED){
   shutdown_power_off();
 }
@@ -220,14 +220,29 @@ void syscall_open(struct intr_frame *f UNUSED){
   lock_release(&filesystem_lock);
 }
 
-
 void syscall_create(struct intr_frame *f){
   if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
-  lock_acquire(&filesystem_lock);
   uint32_t *arguments = (uint32_t*)f->esp;
   char* file = (char*)arguments[1];
   unsigned initial_size = (unsigned) arguments[2];
   if(!is_valid_str(file)) thread_exit();
+  lock_acquire(&filesystem_lock);
   f->eax = filesys_create(file, initial_size);
   lock_release(&filesystem_lock);
+}
+
+void syscall_write(struct intr_frame *f){
+
+}
+
+void syscall_seek(struct intr_frame *f){
+
+}
+
+void syscall_tell(struct intr_frame *f){
+
+}
+
+void syscall_close(struct intr_frame *f){
+
 }

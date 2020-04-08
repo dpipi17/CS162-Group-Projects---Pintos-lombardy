@@ -15,7 +15,7 @@
 
 
 
-struct file* getFileAccordingFD(int fd);
+struct file* get_file_from_fd(int fd);
 static void syscall_handler (struct intr_frame *);
 static struct lock filesystem_lock;
 
@@ -143,7 +143,7 @@ void syscall_filesize(struct intr_frame *f UNUSED){
   lock_acquire(&filesystem_lock);
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
-  struct file *file = getFileAccordingFD(fd);
+  struct file *file = get_file_from_fd(fd);
   f->eax = file_length(file);
   lock_release(&filesystem_lock);
 }
@@ -166,7 +166,7 @@ void syscall_read(struct intr_frame *f UNUSED){
     }
     f->eax = size;
   } else {
-    struct file *file = getFileAccordingFD(fd);
+    struct file *file = get_file_from_fd(fd);
     f->eax = file_read(file, buffer, size);
   }
   lock_release(&filesystem_lock);
@@ -192,7 +192,7 @@ void syscall_exit(struct intr_frame *f UNUSED) {
 
 /* Return file according to it fd
  */
-struct file* getFileAccordingFD(int givenFd){
+struct file* get_file_from_fd(int givenFd){
   struct list_elem *e; 
   struct list curr_list = thread_current()->file_list;
 

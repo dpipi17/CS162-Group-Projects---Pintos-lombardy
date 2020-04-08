@@ -66,7 +66,7 @@ bool is_valid_ptr(void* pptr, size_t size) {
   if (pptr == NULL)
     return false;
 
-  char* ptr = *(char**)pptr;
+  char* ptr = (char*)pptr;
   if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size - 1))
     return false;
   
@@ -98,7 +98,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   printf("System call number: %d\n", args[0]);
 
   int syscallNumber = *(int*)f->esp;
-  syscall_table[syscallNumber].fun(f); 
+  syscall_table[syscallNumber].fun(f);
 }
 
 void syscall_wait(struct intr_frame *f UNUSED){
@@ -162,11 +162,19 @@ void syscall_read(struct intr_frame *f UNUSED){
 
 void syscall_practice(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
+
+  if (!are_valid_args(&arguments[1], 1))
+    thread_exit();
+
   f->eax = arguments[1] + 1;
 }
 
 void syscall_exec(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
+
+  if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[1]))
+    thread_exit();
+
   char* cmd_line = (char*)arguments[1];
   f->eax = process_execute(cmd_line);
 }
@@ -231,8 +239,23 @@ void syscall_create(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
-void syscall_write(struct intr_frame *f){
+void syscall_write(struct intr_frame *f) {
+  uint32_t *arguments = (uint32_t*)f->esp;
+  if (!are_valid_args(&arguments[1], 3) || !is_valid_ptr(arguments[2], arguments[3]))
+    thread_exit();
+  
+  int fd = arguments[1];
+  char* buff = (char*)arguments[2];
+  uint32_t size = (uint32_t)arguments[3];
 
+  lock_acquire(&filesystem_lock);
+  if (fd == 1) {
+    putbuf(buff, size);
+    f->eax = size;
+  } else {
+    // TODO
+  }
+  lock_release(&filesystem_lock);
 }
 
 void syscall_seek(struct intr_frame *f){

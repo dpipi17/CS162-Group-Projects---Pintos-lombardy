@@ -270,8 +270,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  size_t executable_name_size = strcspn (file_name, " ");
+  char * executable_name = malloc ((executable_name_size + 1) * sizeof (char));
+  strlcpy (executable_name, file_name, executable_name_size + 1);
+
   /* Open executable file. */
   file = filesys_open (file_name);
+  free(executable_name);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);

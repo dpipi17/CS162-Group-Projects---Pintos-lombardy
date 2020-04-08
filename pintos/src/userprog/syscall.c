@@ -63,6 +63,9 @@ syscall_init (void)
 }
 
 bool is_valid_ptr(void* pptr, size_t size) {
+  if (pptr == NULL)
+    return false;
+
   char* ptr = *(char**)pptr;
   if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size - 1))
     return false;
@@ -77,18 +80,15 @@ bool is_valid_ptr(void* pptr, size_t size) {
 }
 
 bool is_valid_str(char* ptr) {
+  if (ptr == NULL)
+    return false;
+
   size_t len = strlen(ptr); 
   return is_valid_ptr(ptr, len + 1); 
 }
 
 bool are_valid_args(uint32_t* ptr, size_t num_args) {
-  int i = 0;
-  for (i = 0; i < num_args; i++) {
-    if (!is_valid_ptr(ptr, sizeof(uint32_t)))
-      return false;
-    ptr++;
-  }
-  return true;
+  return is_valid_ptr(ptr, num_args * sizeof(uint32_t));
 }
 
 static void

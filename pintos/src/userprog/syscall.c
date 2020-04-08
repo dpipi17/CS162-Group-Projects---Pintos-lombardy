@@ -251,7 +251,18 @@ void syscall_seek(struct intr_frame *f){
 }
 
 void syscall_tell(struct intr_frame *f){
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
+  lock_acquire(&filesystem_lock);
 
+  uint32_t *arguments = (uint32_t*)f->esp;
+  struct file *file = get_file_from_fd(arguments[1]);
+  if(file == NULL){
+    lock_release(&filesystem_lock);
+    thread_exit();
+  }
+  file_tell (file);
+  
+  lock_release(&filesystem_lock);
 }
 
 void syscall_close(struct intr_frame *f){

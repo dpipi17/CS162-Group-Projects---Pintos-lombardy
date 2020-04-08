@@ -34,7 +34,7 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
+  //sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -135,7 +135,12 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
+  //sema_down (&temporary);
+  while (true)
+  {
+    thread_yield();
+  }
+  
   return 0;
 }
 
@@ -270,8 +275,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  size_t executable_name_size = strcspn (file_name, " ");
+  char * executable_name = malloc ((executable_name_size + 1) * sizeof (char));
+  strlcpy (executable_name, file_name, executable_name_size + 1);
+
   /* Open executable file. */
   file = filesys_open (file_name);
+  free(executable_name);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);

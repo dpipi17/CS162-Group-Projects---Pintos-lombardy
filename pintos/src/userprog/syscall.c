@@ -144,13 +144,13 @@ void syscall_read(struct intr_frame *f UNUSED){
 
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
-  void* buffer = (void*) arguments[1];
+  char* buffer = (char*) arguments[1];
   unsigned size = (unsigned) arguments[2];
 
   if(fd == 0){ //Case when read from keybord  
     unsigned i;
     for(i = 0; i < size; i++){
-      //buffer[i] = input_getc(); //??? TODO: Is return correct? Return char?
+      buffer[i] = input_getc(); //??? TODO: Is return correct? Return char?
     }
     f->eax = size;
   } else {
@@ -206,7 +206,7 @@ void syscall_halt(struct intr_frame *f UNUSED){
 }
 
 void syscall_open(struct intr_frame *f UNUSED){
-  if(!is_valid_ptr(f->esp , 2 * 4)) thread_exit();
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
   uint32_t *arguments = (uint32_t*)f->esp;
   char* filename = arguments[1];
   if(!is_valid_str(filename)) thread_exit();
@@ -288,6 +288,33 @@ void syscall_tell(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
-void syscall_close(struct intr_frame *f){
+struct file_node* get_file_node_from_fd(int givenFd){
+  struct list_elem* e; 
+  struct list curr_list = thread_current()->file_list;
 
+  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+    struct file_node* currFile = list_entry (e, struct file_node, elem); //One of my files
+    if(currFile->fd == givenFd){ 
+      return currFile;
+    }
+  }
+  return NULL;
+}
+
+void syscall_close(struct intr_frame *f){
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
+  lock_acquire(&filesystem_lock);
+
+  uint32_t *arguments = (uint32_t*)f->esp;
+  struct file_node * file_node = get_file_node_from_fd(arguments[1]);
+  if(file_node == NULL){
+    lock_release(&filesystem_lock);
+    thread_exit();
+  }
+  list_remove(&file_node->elem);
+  
+  free(&file_node->elem);
+  free(file_node);
+
+  lock_release(&filesystem_lock);
 }

@@ -94,9 +94,8 @@ bool are_valid_args(uint32_t* ptr, size_t num_args) {
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 { 
-  if(!is_valid_ptr(f->esp , sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , sizeof(int))) thread_exit();
   uint32_t* args = ((uint32_t*) f->esp);
-  printf("System call number: %d\n", args[0]);
 
   int syscallNumber = *(int*)f->esp;
   syscall_table[syscallNumber].fun(f);
@@ -140,13 +139,13 @@ void syscall_filesize(struct intr_frame *f UNUSED){
 /* Returns the size, in bytes, of the file open as fd
  */
 void syscall_read(struct intr_frame *f UNUSED){
-  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
 
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
   char* buffer = (char*) arguments[1];
   unsigned size = (unsigned) arguments[2];
-  if(!is_valid_ptr(buffer, size)) clear_files_and_exit();
+  if(!is_valid_ptr(buffer, size)) thread_exit();
 
   lock_acquire(&filesystem_lock);
   if(fd == 0){ //Case when read from keybord  
@@ -159,7 +158,7 @@ void syscall_read(struct intr_frame *f UNUSED){
     struct file *file = get_file_from_fd(fd);
     if(file == NULL) {
       lock_release(&filesystem_lock);
-      clear_files_and_exit();
+      thread_exit();
     }
     f->eax = file_read(file, buffer, size);
   }
@@ -170,7 +169,7 @@ void syscall_practice(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
 
   if (!are_valid_args(&arguments[1], 1))
-    clear_files_and_exit();
+    thread_exit();
 
   f->eax = arguments[1] + 1;
 }
@@ -179,30 +178,30 @@ void syscall_exec(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
 
   if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[1]))
-    clear_files_and_exit();
+    thread_exit();
 
   char* cmd_line = (char*)arguments[1];
   f->eax = process_execute(cmd_line);
 }
 
-void clear_files_and_exit(){
-  //remove all opened files
-  struct list_elem *e; 
-  struct list *curr_list = &thread_current()->file_list;
-  while(list_size(curr_list)){
-    e = list_pop_back(curr_list);
-    struct file_node *curr_file = list_entry (e, struct file_node, elem);
-    free(&curr_file->elem);
-    free(curr_file);
-  }
-  clear_files_and_exit();
-}
+// void clear_files_and_exit(){
+//   //remove all opened files
+//   struct list_elem *e; 
+//   struct list *curr_list = &thread_current()->file_list;
+//   while(list_size(curr_list)){
+//     e = list_pop_back(curr_list);
+//     struct file_node *curr_file = list_entry (e, struct file_node, elem);
+//     free(&curr_file->elem);
+//     free(curr_file);
+//   }
+//   //clear_files_and_exit();
+// }
 
 void syscall_exit(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
   f->eax = arguments[1]; 
   printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
-  clear_files_and_exit();
+  thread_exit();
 }
 
 /* Return file according to it fd
@@ -225,17 +224,17 @@ void syscall_halt(struct intr_frame *f UNUSED){
 }
 
 void syscall_open(struct intr_frame *f UNUSED){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
   uint32_t *arguments = (uint32_t*)f->esp;
   char* filename = arguments[1];
-  if(!is_valid_str(filename)) clear_files_and_exit();
+  if(!is_valid_str(filename)) thread_exit();
   
   lock_acquire(&filesystem_lock);
   int fd = thread_current()->fd_counter++;
   struct file* file = filesys_open(filename);
   if(file == NULL){
     lock_release(&filesystem_lock);
-    clear_files_and_exit();
+    thread_exit();
   }
   struct file_node* new_node = malloc(sizeof(struct file_node));
   struct list_elem* elem = malloc(sizeof(struct list_elem));
@@ -248,11 +247,11 @@ void syscall_open(struct intr_frame *f UNUSED){
 }
 
 void syscall_create(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
   uint32_t *arguments = (uint32_t*)f->esp;
   char* file = (char*)arguments[1];
   unsigned initial_size = (unsigned) arguments[2];
-  if(!is_valid_str(file)) clear_files_and_exit();
+  if(!is_valid_str(file)) thread_exit();
   lock_acquire(&filesystem_lock);
   f->eax = filesys_create(file, initial_size);
   lock_release(&filesystem_lock);
@@ -261,7 +260,7 @@ void syscall_create(struct intr_frame *f){
 void syscall_write(struct intr_frame *f) {
   uint32_t *arguments = (uint32_t*)f->esp;
   if (!are_valid_args(&arguments[1], 3) || !is_valid_ptr(arguments[2], arguments[3]))
-    clear_files_and_exit();
+    thread_exit();
   
   int fd = arguments[1];
   char* buff = (char*)arguments[2];
@@ -278,14 +277,14 @@ void syscall_write(struct intr_frame *f) {
 }
 
 void syscall_seek(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
   struct file *file = get_file_from_fd(arguments[1]);
   if(file == NULL){
     lock_release(&filesystem_lock);
-    clear_files_and_exit();
+    thread_exit();
   }
   file_seek (file, arguments[2]);
   
@@ -293,14 +292,14 @@ void syscall_seek(struct intr_frame *f){
 }
 
 void syscall_tell(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
   struct file *file = get_file_from_fd(arguments[1]);
   if(file == NULL){
     lock_release(&filesystem_lock);
-    clear_files_and_exit();
+    thread_exit();
   }
   file_tell (file);
   
@@ -321,14 +320,14 @@ struct file_node* get_file_node_from_fd(int givenFd){
 }
 
 void syscall_close(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) clear_files_and_exit();
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
   struct file_node * file_node = get_file_node_from_fd(arguments[1]);
   if(file_node == NULL){
     lock_release(&filesystem_lock);
-    clear_files_and_exit();
+    thread_exit();
   }
   list_remove(&file_node->elem);
   

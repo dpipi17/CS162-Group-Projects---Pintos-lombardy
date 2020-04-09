@@ -34,7 +34,7 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  //sema_init (&temporary, 0);
+  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -80,6 +80,7 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  size_t temp = 0;
   if (success) {
     char * argument_adresses[argc + 1];
     
@@ -87,12 +88,14 @@ start_process (void *file_name_)
     for (i = 0; i < argc; i++) {
       if_.esp -= strlen(argv[i]) + 1;
       memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
+      temp += strlen(argv[i]) + 1;
       argument_adresses[i] = (char *) if_.esp;
     }
     argument_adresses[argc] = NULL;
 
     // argument pointers ordered right to left
     if_.esp -= (unsigned) (if_.esp) % 4 + (argc + 1) * sizeof(char *);
+    temp += (unsigned) (if_.esp) % 4 + (argc + 1) * sizeof(char *);
     memcpy (if_.esp, argument_adresses, (argc + 1) * sizeof(char *));
 
     // space for argv and argc
@@ -106,8 +109,11 @@ start_process (void *file_name_)
     if_.esp -= 4;
     int ra = 0;
     memcpy(if_.esp, &ra, 4);
+    temp += 12;
   }
 
+  //For debug
+  //hex_dump(0, if_.esp, temp, true);
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
@@ -135,11 +141,11 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  //sema_down (&temporary);
-  while (true)
-  {
-    thread_yield();
-  }
+  sema_down (&temporary);
+  // while (true)
+  // {
+  //   thread_yield();
+  // }
   
   return 0;
 }

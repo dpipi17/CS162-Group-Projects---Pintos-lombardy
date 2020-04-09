@@ -14,7 +14,7 @@
 #include "filesys/file.h"
 #include "threads/malloc.h"
 
-struct file* get_file_from_fd(int fd);
+struct file_node* get_file_node_from_fd(int givenFd);
 static void syscall_handler (struct intr_frame *);
 static struct lock filesystem_lock;
 
@@ -136,12 +136,13 @@ void syscall_filesize(struct intr_frame *f UNUSED){
   int fd = (int)arguments[1];
   if (!are_valid_args(&arguments[1], 1)){
     f->eax = -1;
-    thread_exit();
+    return;
+    //thread_exit();
   }
     
   lock_acquire(&filesystem_lock);
-  struct file *file = get_file_from_fd(fd);
-  f->eax = file_length(file);
+  struct file_node *file_node = get_file_node_from_fd(fd);
+  f->eax = file_length(file_node->file);
   lock_release(&filesystem_lock);
 }
 
@@ -169,13 +170,13 @@ void syscall_read(struct intr_frame *f UNUSED){
     }
     f->eax = size;
   } else {
-    struct file *file = get_file_from_fd(fd);
-    if(file == NULL) {
+    struct file_node *file_node = get_file_node_from_fd(fd);
+    if(file_node == NULL) {
       f->eax = -1;
       lock_release(&filesystem_lock);
-      thread_exit();
+      return;
     }
-    f->eax = file_read(file, buffer, size);
+    f->eax = file_read(file_node->file, buffer, size);
   }
   lock_release(&filesystem_lock);
 }
@@ -207,23 +208,6 @@ void syscall_exit(struct intr_frame *f UNUSED) {
   f->eax = arguments[1];
   thread_current()->process_node->status = arguments[1]; 
   thread_exit();
-}
-
-/* Return file according to it fd
- */
-struct file* get_file_from_fd(int givenFd){
-  struct list_elem *e; 
-  struct list *curr_list = &(thread_current()->file_list);
-
-  if(list_empty(curr_list)) return NULL;
-
-  for(e = list_begin (curr_list); e != list_end (curr_list); e = list_next (e)){
-    struct file_node *curr_file = list_entry (e, struct file_node, elem); //One of my files
-    if(curr_file->fd == givenFd){ 
-      return curr_file->file;
-    }
-  }
-  return NULL;
 }
 
 void syscall_halt(struct intr_frame *f UNUSED){
@@ -277,9 +261,12 @@ void syscall_write(struct intr_frame *f) {
     putbuf(buff, size);
     f->eax = size;
   } else {
-    struct file* file = get_file_from_fd(fd);
-    if (file != NULL)
-      f->eax = file_write(file, buff, size);
+    struct file_node* file_node = get_file_node_from_fd(fd);
+    if (file_node != NULL) {
+      f->eax = file_write(file_node->file, buff, size);
+    } else {
+      f->eax = -1;
+    }
   }
   lock_release(&filesystem_lock);
 }
@@ -289,12 +276,13 @@ void syscall_seek(struct intr_frame *f){
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
-  struct file *file = get_file_from_fd(arguments[1]);
-  if(file == NULL){
+  struct file_node *file_node = get_file_node_from_fd(arguments[1]);
+  if(file_node == NULL){
+    f->eax = -1;
     lock_release(&filesystem_lock);
-    thread_exit();
+    return;
   }
-  file_seek (file, arguments[2]);
+  file_seek (file_node->file, arguments[2]);
   
   lock_release(&filesystem_lock);
 }
@@ -304,12 +292,13 @@ void syscall_tell(struct intr_frame *f){
   lock_acquire(&filesystem_lock);
 
   uint32_t *arguments = (uint32_t*)f->esp;
-  struct file *file = get_file_from_fd(arguments[1]);
-  if(file == NULL){
+  struct file_node *file_node = get_file_node_from_fd(arguments[1]);
+  if(file_node == NULL){
+    f->eax = -1;
     lock_release(&filesystem_lock);
-    thread_exit();
+    return;
   }
-  file_tell (file);
+  file_tell (file_node->file);
   
   lock_release(&filesystem_lock);
 }
@@ -335,6 +324,7 @@ void syscall_close(struct intr_frame *f){
   lock_acquire(&filesystem_lock);
   struct file_node * file_node = get_file_node_from_fd(arguments[1]);
   if(file_node == NULL){
+    f->eax = -1;
     lock_release(&filesystem_lock);
     return;
   }
@@ -345,14 +335,7 @@ void syscall_close(struct intr_frame *f){
 
 
 void exit_with_error_code(struct intr_frame *f){
-  // f->error_code = -1;
-  f->eax = (uint32_t)(-1);
+  f->eax = -1;
   thread_exit();
 }
 
-
-// close-normal
-// * 0/ 2 tests/userprog/close-stdin
-// ** 0/ 2 tests/userprog/close-stdout
-// ** 0/ 2 tests/userprog/close-bad-fd
-// ** 0/ 2 tests/userprog/close-twice

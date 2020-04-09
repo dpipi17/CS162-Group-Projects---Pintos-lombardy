@@ -104,6 +104,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 void syscall_wait(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
+  if (!are_valid_args(&arguments[1], 1))
+    thread_exit();
+    
   tid_t tid = (tid_t)arguments[1];
   f->esp = process_wait(tid);
 }
@@ -129,9 +132,12 @@ void syscall_remove(struct intr_frame *f UNUSED){
 /* Returns the size, in bytes, of the file open as fd
  */
 void syscall_filesize(struct intr_frame *f UNUSED){
-  lock_acquire(&filesystem_lock);
   uint32_t *arguments = (uint32_t*)f->esp;
-  int fd = (int)arguments[0];
+  int fd = (int)arguments[1];
+  if (!are_valid_args(&arguments[1], 1))
+    thread_exit();
+    
+  lock_acquire(&filesystem_lock);
   struct file *file = get_file_from_fd(fd);
   f->eax = file_length(file);
   lock_release(&filesystem_lock);
@@ -188,6 +194,9 @@ void syscall_exec(struct intr_frame *f UNUSED) {
 
 void syscall_exit(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
+  if (!are_valid_args(&arguments[1], 1))
+    thread_exit();
+    
   thread_current ()->process_node->status = arguments[1]; 
   printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
   thread_exit();

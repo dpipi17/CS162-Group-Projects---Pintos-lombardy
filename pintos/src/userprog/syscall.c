@@ -104,8 +104,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 void syscall_wait(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
-  if (!are_valid_args(&arguments[1], 1))
+  if (!are_valid_args(&arguments[1], 1)){
+    f->eax = -1;
     thread_exit();
+  }
     
   tid_t tid = (tid_t)arguments[1];
   f->esp = process_wait(tid);
@@ -117,15 +119,13 @@ void syscall_wait(struct intr_frame *f UNUSED){
 void syscall_remove(struct intr_frame *f UNUSED){
   lock_acquire(&filesystem_lock);
   uint32_t *arguments = (uint32_t*)f->esp;
-  char* fileName = (char*)arguments[1];
-  //Check given argument - in this case: fileName
-  if(!is_valid_str(fileName)){
-      lock_release(&filesystem_lock);
-      syscall_exit(f); //If argument is invalid kill process
-      //TODO need return something(error code) or not?
-  } else {
-      f->eax = filesys_remove(fileName); 
+  if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[1])){
+    f->eax = 0;
+    lock_release(&filesystem_lock);
+    thread_exit();
   }
+  char* fileName = (char*)arguments[1];
+  f->eax = filesys_remove(fileName); 
   lock_release(&filesystem_lock);
 }
 
@@ -134,8 +134,10 @@ void syscall_remove(struct intr_frame *f UNUSED){
 void syscall_filesize(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[1];
-  if (!are_valid_args(&arguments[1], 1))
+  if (!are_valid_args(&arguments[1], 1)){
+    f->eax = -1;
     thread_exit();
+  }
     
   lock_acquire(&filesystem_lock);
   struct file *file = get_file_from_fd(fd);
@@ -146,15 +148,20 @@ void syscall_filesize(struct intr_frame *f UNUSED){
 /* Returns the size, in bytes, of the file open as fd
  */
 void syscall_read(struct intr_frame *f UNUSED){
-  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
-
+  lock_acquire(&filesystem_lock);
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))){
+    f->eax = -1;
+    thread_exit();
+  } 
   uint32_t *arguments = (uint32_t*)f->esp;
+  if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[2])){
+    f->eax = -1;
+    lock_release(&filesystem_lock);
+    thread_exit();
+  }
   int fd = (int)arguments[1];
   char* buffer = (char*) arguments[2];
   unsigned size = (unsigned) arguments[3];
-  if(!is_valid_ptr(buffer, size)) thread_exit();
-
-  lock_acquire(&filesystem_lock);
   if(fd == 0){ //Case when read from keybord  
     unsigned i;
     for(i = 0; i < size; i++){
@@ -164,7 +171,7 @@ void syscall_read(struct intr_frame *f UNUSED){
   } else {
     struct file *file = get_file_from_fd(fd);
     if(file == NULL) {
-      exit_with_error_code(f);
+      f->eax = -1;
       lock_release(&filesystem_lock);
       thread_exit();
     }

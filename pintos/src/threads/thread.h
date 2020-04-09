@@ -146,9 +146,9 @@ int thread_get_load_avg (void);
 
 //Our Structure to map "fd" and "struct file"
 struct file_node{
+    struct list_elem elem;
     int fd;
     struct file* file;
-    struct list_elem elem;
 };
 #endif /* threads/thread.h */
 

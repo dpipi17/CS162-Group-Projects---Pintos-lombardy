@@ -272,7 +272,9 @@ void syscall_write(struct intr_frame *f) {
     putbuf(buff, size);
     f->eax = size;
   } else {
-    // TODO
+    struct file* file = get_file_from_fd(fd);
+    if (file != NULL)
+      f->eax = file_write(file, buff, size);
   }
   lock_release(&filesystem_lock);
 }

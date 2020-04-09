@@ -182,6 +182,17 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  
+
+  // process node for project 2
+  struct process_node * node = malloc (sizeof (struct process_node));
+  node->pid = tid;
+  sema_init (&node->semaphore, 0);
+  node->status = -1;
+  node->successful = false;
+  list_push_back (&running_thread ()->child_process_nodes, &node->elem);
+  t->process_node = node;
+
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -470,6 +481,7 @@ init_thread (struct thread *t, const char *name, int priority)
   intr_set_level (old_level);
 
   list_init (&t->file_list); //Project 2
+  list_init(&t->child_process_nodes);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

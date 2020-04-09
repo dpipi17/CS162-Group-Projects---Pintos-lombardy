@@ -540,8 +540,10 @@ install_page (void *upage, void *kpage, bool writable)
 
 struct process_node * child_process_node (pid_t pid) {
   struct list_elem* e; 
-  struct list curr_list = thread_current()->child_process_nodes;
-  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+  struct list *curr_list = &(thread_current()->child_process_nodes);
+
+  if(list_empty(curr_list)) return NULL;
+  for(e = list_begin (curr_list); e != list_end (curr_list); e = list_next (e)){
     struct process_node * curr_node = list_entry (e, struct process_node, elem);
     if(curr_node->pid == pid){ 
       return curr_node;

@@ -182,6 +182,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
   sema_up (&cur->process_node->semaphore);
 }
 

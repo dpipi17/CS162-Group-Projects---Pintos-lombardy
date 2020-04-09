@@ -196,9 +196,9 @@ void syscall_exit(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
   if (!are_valid_args(&arguments[1], 1))
     thread_exit();
-    
-  thread_current ()->process_node->status = arguments[1]; 
-  printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
+
+  f->eax = arguments[1];
+  thread_current()->process_node->status = arguments[1]; 
   thread_exit();
 }
 

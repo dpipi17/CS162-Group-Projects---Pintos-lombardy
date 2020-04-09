@@ -143,9 +143,9 @@ void syscall_read(struct intr_frame *f UNUSED){
   if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
 
   uint32_t *arguments = (uint32_t*)f->esp;
-  int fd = (int)arguments[0];
-  char* buffer = (char*) arguments[1];
-  unsigned size = (unsigned) arguments[2];
+  int fd = (int)arguments[1];
+  char* buffer = (char*) arguments[2];
+  unsigned size = (unsigned) arguments[3];
   if(!is_valid_ptr(buffer, size)) thread_exit();
 
   lock_acquire(&filesystem_lock);
@@ -158,6 +158,7 @@ void syscall_read(struct intr_frame *f UNUSED){
   } else {
     struct file *file = get_file_from_fd(fd);
     if(file == NULL) {
+      exit_with_error_code(f);
       lock_release(&filesystem_lock);
       thread_exit();
     }

@@ -55,7 +55,6 @@ syscall_desc_t syscall_table[] = {
   {syscall_practice},
 };
 
-
 void
 syscall_init (void)
 {
@@ -95,6 +94,7 @@ bool are_valid_args(uint32_t* ptr, size_t num_args) {
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 { 
+  if(!is_valid_ptr(f->esp , sizeof(int))) clear_files_and_exit();
   uint32_t* args = ((uint32_t*) f->esp);
   printf("System call number: %d\n", args[0]);
 
@@ -137,25 +137,30 @@ void syscall_filesize(struct intr_frame *f UNUSED){
   lock_release(&filesystem_lock);
 }
 
-
 /* Returns the size, in bytes, of the file open as fd
  */
 void syscall_read(struct intr_frame *f UNUSED){
-  lock_acquire(&filesystem_lock);
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) clear_files_and_exit();
 
   uint32_t *arguments = (uint32_t*)f->esp;
   int fd = (int)arguments[0];
   char* buffer = (char*) arguments[1];
   unsigned size = (unsigned) arguments[2];
+  if(!is_valid_ptr(buffer, size)) clear_files_and_exit();
 
+  lock_acquire(&filesystem_lock);
   if(fd == 0){ //Case when read from keybord  
     unsigned i;
     for(i = 0; i < size; i++){
-      buffer[i] = input_getc(); //??? TODO: Is return correct? Return char?
+      buffer[i] = input_getc();
     }
     f->eax = size;
   } else {
     struct file *file = get_file_from_fd(fd);
+    if(file == NULL) {
+      lock_release(&filesystem_lock);
+      clear_files_and_exit();
+    }
     f->eax = file_read(file, buffer, size);
   }
   lock_release(&filesystem_lock);

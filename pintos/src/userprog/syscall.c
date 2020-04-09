@@ -196,9 +196,11 @@ void syscall_exit(struct intr_frame *f UNUSED) {
  */
 struct file* get_file_from_fd(int givenFd){
   struct list_elem *e; 
-  struct list curr_list = thread_current()->file_list;
+  struct list *curr_list = &(thread_current()->file_list);
 
-  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+  if(list_empty(curr_list)) return NULL;
+
+  for(e = list_begin (curr_list); e != list_end (curr_list); e = list_next (e)){
     struct file_node *curr_file = list_entry (e, struct file_node, elem); //One of my files
     if(curr_file->fd == givenFd){ 
       return curr_file->file;
@@ -226,11 +228,9 @@ void syscall_open(struct intr_frame *f UNUSED){
     return;
   }
   struct file_node* new_node = malloc(sizeof(struct file_node));
-  struct list_elem* elem = malloc(sizeof(struct list_elem));
-  list_push_back(&(thread_current()->file_list) , elem);
+  list_push_back(&(thread_current()->file_list) , &(new_node ->elem));
   new_node->fd = fd;
   new_node->file = file;
-  new_node->elem = *elem;
   f->eax = fd;
   lock_release(&filesystem_lock);
 }
@@ -297,9 +297,10 @@ void syscall_tell(struct intr_frame *f){
 
 struct file_node* get_file_node_from_fd(int givenFd){
   struct list_elem* e; 
-  struct list curr_list = thread_current()->file_list;
+  struct list* curr_list = &(thread_current()->file_list);
 
-  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+  if(list_size(curr_list) == (size_t)(0)) return NULL;
+  for(e = list_begin (curr_list); e != list_end (curr_list); e = list_next (e)){
     struct file_node* curr_file = list_entry (e, struct file_node, elem); //One of my files
     if(curr_file->fd == givenFd){ 
       return curr_file;
@@ -309,20 +310,17 @@ struct file_node* get_file_node_from_fd(int givenFd){
 }
 
 void syscall_close(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
-  lock_acquire(&filesystem_lock);
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) return;
   uint32_t *arguments = (uint32_t*)f->esp;
-  if(arguments[1] == 0 || arguments[1] == 1) exit_with_error_code(f);
+  if(arguments[1] == 0 || arguments[1] == 1) return;
+  lock_acquire(&filesystem_lock);
   struct file_node * file_node = get_file_node_from_fd(arguments[1]);
   if(file_node == NULL){
     lock_release(&filesystem_lock);
-    exit_with_error_code(f);
+    return;
   }
-  list_remove(&file_node->elem);
-  
-  free(&file_node->elem);
+  list_remove(&(file_node->elem));
   free(file_node);
-
   lock_release(&filesystem_lock);
 }
 

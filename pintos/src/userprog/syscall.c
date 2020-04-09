@@ -185,22 +185,9 @@ void syscall_exec(struct intr_frame *f UNUSED) {
   f->eax = process_execute(cmd_line);
 }
 
-// void clear_files_and_exit(){
-//   //remove all opened files
-//   struct list_elem *e; 
-//   struct list *curr_list = &thread_current()->file_list;
-//   while(list_size(curr_list)){
-//     e = list_pop_back(curr_list);
-//     struct file_node *curr_file = list_entry (e, struct file_node, elem);
-//     free(&curr_file->elem);
-//     free(curr_file);
-//   }
-//   //clear_files_and_exit();
-// }
-
 void syscall_exit(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
-  f->eax = arguments[1]; 
+  thread_current ()->process_node->status = arguments[1]; 
   printf("%s: exit(%d)\n", &thread_current ()->name, arguments[1]);
   thread_exit();
 }

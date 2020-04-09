@@ -20,9 +20,9 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static struct process_node * child_process_node (pid_t pid);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -34,7 +34,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -51,7 +50,15 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   free(executable_name);
-  return tid;
+
+  struct process_node * child_process = child_process_node (tid);
+  sema_down (&child_process->semaphore);
+
+  if (child_process->successful) {
+    return tid;
+  }
+
+  return -1;
 }
 
 /* A thread function that loads a user process and starts it
@@ -80,22 +87,22 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  size_t temp = 0;
+  struct process_node * child_process;
   if (success) {
+    child_process = thread_current ()->process_node;
+    child_process->successful = true;
+
     char * argument_adresses[argc + 1];
-    
     int i;
     for (i = 0; i < argc; i++) {
       if_.esp -= strlen(argv[i]) + 1;
       memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);
-      temp += strlen(argv[i]) + 1;
       argument_adresses[i] = (char *) if_.esp;
     }
     argument_adresses[argc] = NULL;
 
     // argument pointers ordered right to left
     if_.esp -= (unsigned) (if_.esp) % 4 + (argc + 1) * sizeof(char *);
-    temp += (unsigned) (if_.esp) % 4 + (argc + 1) * sizeof(char *);
     memcpy (if_.esp, argument_adresses, (argc + 1) * sizeof(char *));
 
     // space for argv and argc
@@ -109,16 +116,17 @@ start_process (void *file_name_)
     if_.esp -= 4;
     int ra = 0;
     memcpy(if_.esp, &ra, 4);
-    temp += 12;
   }
 
   //For debug
-  //hex_dump(0, if_.esp, temp, true);
+  //hex_dump(0, if_.esp, 100, true);
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
     thread_exit ();
 
+  sema_up (&child_process->semaphore);  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -141,13 +149,14 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
-  // while (true)
-  // {
-  //   thread_yield();
-  // }
-  
-  return 0;
+  struct process_node * child_process = child_process_node (child_tid);
+  if (child_process == NULL) return -1;
+
+  int result;
+  sema_down (&child_process->semaphore);
+  result = child_process->status;
+  list_remove (&child_process->elem);
+  return result;
 }
 
 /* Free the current process's resources. */
@@ -173,7 +182,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
+  sema_up (&cur->process_node->semaphore);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -528,3 +537,15 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+struct process_node * child_process_node (pid_t pid) {
+  struct list_elem* e; 
+  struct list curr_list = thread_current()->child_process_nodes;
+  for(e = list_begin (&curr_list); e != list_end (&curr_list); e = list_next (e)){
+    struct process_node * curr_node = list_entry (e, struct process_node, elem);
+    if(curr_node->pid == pid){ 
+      return curr_node;
+    }
+  }
+  return NULL;
+};

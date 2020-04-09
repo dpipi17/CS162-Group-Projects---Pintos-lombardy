@@ -20,6 +20,7 @@ static struct lock filesystem_lock;
 
 typedef void syscall_fun_t(struct intr_frame *f UNUSED); 
 void clear_files_and_exit();
+void exit_with_error_code(struct intr_frame *f UNUSED);
 
 typedef struct sycall_desc {
   syscall_fun_t *fun; //Function that should be done
@@ -224,17 +225,18 @@ void syscall_halt(struct intr_frame *f UNUSED){
 }
 
 void syscall_open(struct intr_frame *f UNUSED){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) exit_with_error_code(f);
   uint32_t *arguments = (uint32_t*)f->esp;
   char* filename = arguments[1];
-  if(!is_valid_str(filename)) thread_exit();
+  if(!is_valid_str(filename)) exit_with_error_code(f);
   
   lock_acquire(&filesystem_lock);
   int fd = thread_current()->fd_counter++;
   struct file* file = filesys_open(filename);
   if(file == NULL){
     lock_release(&filesystem_lock);
-    thread_exit();
+    f->eax = -1;
+    return;
   }
   struct file_node* new_node = malloc(sizeof(struct file_node));
   struct list_elem* elem = malloc(sizeof(struct list_elem));
@@ -247,11 +249,11 @@ void syscall_open(struct intr_frame *f UNUSED){
 }
 
 void syscall_create(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) thread_exit();
+  if(!is_valid_ptr(f->esp , 3 * sizeof(int))) exit_with_error_code(f);
   uint32_t *arguments = (uint32_t*)f->esp;
   char* file = (char*)arguments[1];
   unsigned initial_size = (unsigned) arguments[2];
-  if(!is_valid_str(file)) thread_exit();
+  if(!is_valid_str(file)) exit_with_error_code(f);
   lock_acquire(&filesystem_lock);
   f->eax = filesys_create(file, initial_size);
   lock_release(&filesystem_lock);
@@ -322,12 +324,12 @@ struct file_node* get_file_node_from_fd(int givenFd){
 void syscall_close(struct intr_frame *f){
   if(!is_valid_ptr(f->esp , 2 * sizeof(int))) thread_exit();
   lock_acquire(&filesystem_lock);
-
   uint32_t *arguments = (uint32_t*)f->esp;
+  if(arguments[1] == 0 || arguments[1] == 1) exit_with_error_code(f);
   struct file_node * file_node = get_file_node_from_fd(arguments[1]);
   if(file_node == NULL){
     lock_release(&filesystem_lock);
-    thread_exit();
+    exit_with_error_code(f);
   }
   list_remove(&file_node->elem);
   
@@ -336,3 +338,17 @@ void syscall_close(struct intr_frame *f){
 
   lock_release(&filesystem_lock);
 }
+
+
+void exit_with_error_code(struct intr_frame *f){
+  // f->error_code = -1;
+  f->eax = (uint32_t)(-1);
+  thread_exit();
+}
+
+
+// close-normal
+// * 0/ 2 tests/userprog/close-stdin
+// ** 0/ 2 tests/userprog/close-stdout
+// ** 0/ 2 tests/userprog/close-bad-fd
+// ** 0/ 2 tests/userprog/close-twice

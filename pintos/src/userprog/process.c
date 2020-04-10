@@ -182,6 +182,13 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  struct list_elem * e;
+  while (!list_empty (&cur->child_process_nodes)) {
+    e = list_pop_back (&cur->child_process_nodes);
+    free (list_entry (e, struct process_node, elem));
+  }
+
   printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
   sema_up (&cur->process_node->semaphore);
 }

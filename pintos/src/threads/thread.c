@@ -295,6 +295,15 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+
+struct list_elem * e;
+struct file_node * file_node;
+while (!list_empty (&thread_current ()->file_list)) {
+  e = list_pop_back (&thread_current ()->file_list);
+  file_node = list_entry (e, struct file_node, elem);
+  file_close (file_node->file);
+  free (file_node);
+}
 #endif
 
   /* Remove thread from all threads list, set our status to dying,

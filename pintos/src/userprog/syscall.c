@@ -90,6 +90,7 @@ bool is_valid_str(char* ptr) {
   
   return true;
 }
+
 bool are_valid_args(uint32_t* ptr, size_t num_args) {
   return is_valid_ptr(ptr, num_args * sizeof(uint32_t));
 }
@@ -112,7 +113,7 @@ void syscall_wait(struct intr_frame *f UNUSED){
   }
     
   tid_t tid = (tid_t)arguments[1];
-  f->esp = process_wait(tid);
+  f->eax = process_wait(tid);
 }
 
 /* Deletes the file called fileName. 
@@ -196,9 +197,10 @@ void syscall_exec(struct intr_frame *f UNUSED) {
   uint32_t *arguments = (uint32_t*)f->esp;
 
   if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[1]))
-    thread_exit();
+    exit_with_error_code(f);
 
   char* cmd_line = (char*)arguments[1];
+  if(!is_valid_str(cmd_line)) exit_with_error_code(f);
   f->eax = process_execute(cmd_line);
 }
 

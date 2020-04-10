@@ -93,7 +93,7 @@ start_process (void *file_name_)
     child_process->successful = true;
 
     char * argument_adresses[argc + 1];
-    int i;
+    unsigned i;
     for (i = 0; i < argc; i++) {
       if_.esp -= strlen(argv[i]) + 1;
       memcpy(if_.esp, argv[i], strlen(argv[i]) + 1);

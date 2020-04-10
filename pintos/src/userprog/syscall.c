@@ -81,13 +81,15 @@ bool is_valid_ptr(void* pptr, size_t size) {
 }
 
 bool is_valid_str(char* ptr) {
-  if (ptr == NULL)
-    return false;
-
-  size_t len = strlen(ptr); 
-  return is_valid_ptr(ptr, len + 1); 
+  if(ptr == NULL) return false;
+  if(!is_valid_ptr((void*)ptr , 1)) return false;
+  char *p;
+  
+  for (p = ptr; is_valid_ptr((void*)p , 1) && *p != '\0'; p++)
+    continue;
+  
+  return true;
 }
-
 bool are_valid_args(uint32_t* ptr, size_t num_args) {
   return is_valid_ptr(ptr, num_args * sizeof(uint32_t));
 }

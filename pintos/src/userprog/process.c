@@ -189,6 +189,8 @@ process_exit (void)
     free (list_entry (e, struct process_node, elem));
   }
 
+  file_close(cur->exec_file);
+  
   printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
   sema_up (&cur->process_node->semaphore);
 }
@@ -303,13 +305,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy (executable_name, file_name, executable_name_size + 1);
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (executable_name);
   free(executable_name);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
+
+  t->exec_file = file;
+  file_deny_write(file);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -393,8 +398,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   success = true;
 
  done:
-  /* We arrive here whether the load is successful or not. */
-  file_close (file);
   return success;
 }
 

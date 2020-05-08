@@ -54,6 +54,14 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
+/**/
+static struct list threads_on_sleep;
+struct thread_on_sleep_node {
+  struct list_elem elem;
+  int64_t awake_time;
+  struct thread* thread;
+};
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -92,6 +100,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&threads_on_sleep);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -117,10 +126,29 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
+
+bool sleep_thread_compare(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  const struct thread_on_sleep_node *node_a = list_entry (a, struct thread_on_sleep_node, elem);
+  const struct thread_on_sleep_node *node_b = list_entry (b, struct thread_on_sleep_node, elem);
+  return node_a->awake_time < node_b->awake_time;
+}
+
+void thread_sleep(int64_t awake_time){
+  struct thread_on_sleep_node *node = malloc (sizeof(struct thread_on_sleep_node));
+  node->awake_time = awake_time;
+  node->thread = thread_current ();
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  list_insert_ordered(&threads_on_sleep, &node->elem, &sleep_thread_compare, NULL);
+  thread_block();
+  intr_set_level (old_level);
+}
+
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
-thread_tick (void)
+thread_tick (int64_t current_ticks)
 {
   struct thread *t = thread_current ();
 
@@ -133,6 +161,18 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+  
+  while(1){
+    struct list_elem *e = list_begin (&threads_on_sleep);
+    if(e == list_end (&threads_on_sleep)) break;
+    struct thread_on_sleep_node * node = list_entry (e, struct thread_on_sleep_node, elem);
+    if(node->awake_time > current_ticks) break;
+    enum intr_level old_level;
+    old_level = intr_disable ();
+    list_remove (e);
+    thread_unblock (node->thread);
+    intr_set_level (old_level);
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -183,7 +223,7 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
   
-
+#ifdef USERPROG
   // process node for project 2
   struct process_node * node = malloc (sizeof (struct process_node));
   node->pid = tid;
@@ -192,6 +232,7 @@ thread_create (const char *name, int priority,
   node->successful = false;
   list_push_back (&running_thread ()->child_process_nodes, &node->elem);
   t->process_node = node;
+#endif
 
 
   /* Stack frame for kernel_thread(). */

@@ -130,6 +130,7 @@ void syscall_exec(struct intr_frame *f UNUSED) {
  * Then, returns the status that pid passed to exit
  */
 void syscall_wait(struct intr_frame *f UNUSED){
+  ASSERT(false);
   uint32_t *arguments = (uint32_t*)f->esp;
   if (!are_valid_args(&arguments[1], 1)){
     f->eax = -1;

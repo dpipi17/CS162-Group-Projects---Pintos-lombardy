@@ -119,7 +119,7 @@ extern bool thread_mlfqs;
 void thread_init (void);
 void thread_start (void);
 
-void thread_tick (void);
+void thread_tick (int64_t current_ticks);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
@@ -147,6 +147,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void thread_sleep(int64_t awake_time);
 
 //Our Structure to map "fd" and "struct file"
 struct file_node{

@@ -254,6 +254,10 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  // Preemption
+  if (thread_current()->priority < t->priority)
+    thread_yield();
+
   return tid;
 }
 
@@ -274,12 +278,12 @@ thread_block (void)
 }
 
 
-bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux) {
+bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
   int a_priority = list_entry(a, struct thread, elem)->priority;
   int b_priority = list_entry(b, struct thread, elem)->priority;
 
   // need list to be sorted by descending
-  return a >= b;
+  return a_priority > b_priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -406,7 +410,18 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  struct thread* t = thread_current();
+  int old_priority = t->priority;
+  t->priority = new_priority;
+
+  enum intr_level old_level = intr_disable();
+  if (t->status == THREAD_READY) {
+    list_remove(&t->elem);
+    list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
+  }
+  intr_set_level(old_level);
+  
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */

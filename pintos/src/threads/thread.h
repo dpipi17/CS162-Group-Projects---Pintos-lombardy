@@ -103,6 +103,7 @@ struct thread
 
    struct list locks;
    int base_priority;
+   struct lock * waiting_lock; 
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

@@ -177,6 +177,7 @@ lock_init (struct lock *lock)
 {
   ASSERT (lock != NULL);
 
+  lock->priority = 0;
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
 }
@@ -200,18 +201,38 @@ lock_acquire (struct lock *lock)
 
   struct thread * current_thread = thread_current ();
   old_level = intr_disable ();
-  if (!sema_try_down(&lock->semaphore)) {
-    if (!thread_mlfqs) {
-      if (current_thread->priority > lock->priority) {
-        lock->priority = current_thread->priority;
-        if (lock->holder != NULL) {
-          // Todo
+  
+  if (!thread_mlfqs) {
+    if (current_thread->priority > lock->priority) {
+      lock->priority = current_thread->priority;
+      
+      if (lock->holder != NULL) {
+        struct thread * holder_thread = lock->holder;
+        struct lock * curr_lock = lock;
+        while (holder_thread->priority < curr_lock->priority) {
+          holder_thread->priority = curr_lock->priority;
+
+          if (holder_thread->waiting_lock == NULL) break;
+          curr_lock = holder_thread->waiting_lock;
+
+          if (curr_lock->priority >= holder_thread->priority) break;
+          curr_lock->priority = holder_thread->priority;
+          
+          if (curr_lock->holder == NULL) break;
+          holder_thread = curr_lock->holder;
         }
       }
     }
-    sema_down (&lock->semaphore);
   }
+
+  current_thread->waiting_lock = lock;
+  sema_down (&lock->semaphore);
+  current_thread->waiting_lock = NULL;
+
+  list_push_back (&thread_current ()->locks, &lock->elem);
   lock->holder = thread_current ();
+  
+
   
   intr_set_level (old_level);
 }

@@ -101,6 +101,9 @@ struct thread
     struct process_node * process_node;                
     struct list child_process_nodes;
 
+   struct list locks;
+   int base_priority;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */ 

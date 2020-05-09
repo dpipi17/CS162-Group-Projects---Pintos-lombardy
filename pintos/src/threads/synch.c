@@ -192,12 +192,28 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
+  struct thread * current_thread = thread_current ();
+  old_level = intr_disable ();
+  if (!sema_try_down(&lock->semaphore)) {
+    if (!thread_mlfqs) {
+      if (current_thread->priority > lock->priority) {
+        lock->priority = current_thread->priority;
+        if (lock->holder != NULL) {
+          // Todo
+        }
+      }
+    }
+    sema_down (&lock->semaphore);
+  }
   lock->holder = thread_current ();
+  
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -244,6 +260,13 @@ lock_held_by_current_thread (const struct lock *lock)
   ASSERT (lock != NULL);
 
   return lock->holder == thread_current ();
+}
+
+bool lock_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  int a_priority = list_entry(a, struct lock, elem)->priority;
+  int b_priority = list_entry(b, struct lock, elem)->priority;
+
+  return a_priority <= b_priority;
 }
 
 /* One semaphore in a list. */

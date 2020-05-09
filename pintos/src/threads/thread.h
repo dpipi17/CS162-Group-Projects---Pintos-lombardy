@@ -148,6 +148,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void thread_sleep(int64_t awake_time);
+bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 
 //Our Structure to map "fd" and "struct file"
 struct file_node{

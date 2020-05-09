@@ -79,7 +79,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -282,8 +282,7 @@ bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *
   int a_priority = list_entry(a, struct thread, elem)->priority;
   int b_priority = list_entry(b, struct thread, elem)->priority;
 
-  // need list to be sorted by descending
-  return a_priority > b_priority;
+  return a_priority <= b_priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -414,13 +413,13 @@ thread_set_priority (int new_priority)
   int old_priority = t->priority;
   t->priority = new_priority;
 
-  enum intr_level old_level = intr_disable();
-  if (t->status == THREAD_READY) {
-    list_remove(&t->elem);
-    list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
-  }
-  intr_set_level(old_level);
-  
+  // enum intr_level old_level = intr_disable();
+  // if (t->status == THREAD_READY) {
+  //   list_remove(&t->elem);
+  //   list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
+  // }
+  // intr_set_level(old_level);
+
   thread_yield();
 }
 
@@ -583,7 +582,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_back(&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page

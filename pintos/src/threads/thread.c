@@ -79,6 +79,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -137,9 +139,8 @@ void thread_sleep(int64_t awake_time){
   struct thread_on_sleep_node *node = malloc (sizeof(struct thread_on_sleep_node));
   node->awake_time = awake_time;
   node->thread = thread_current ();
-  enum intr_level old_level;
-  old_level = intr_disable ();
-  list_insert_ordered(&threads_on_sleep, &node->elem, &sleep_thread_compare, NULL);
+  enum intr_level old_level = intr_disable ();
+  list_insert_ordered(&threads_on_sleep, &node->elem, sleep_thread_compare, NULL);
   thread_block();
   intr_set_level (old_level);
 }
@@ -272,6 +273,15 @@ thread_block (void)
   schedule ();
 }
 
+
+bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux) {
+  int a_priority = list_entry(a, struct thread, elem)->priority;
+  int b_priority = list_entry(b, struct thread, elem)->priority;
+
+  // need list to be sorted by descending
+  return a >= b;
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -289,7 +299,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -369,7 +379,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, thread_priority_cmp_fn, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);

@@ -68,7 +68,6 @@ struct thread_on_sleep_node {
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 fixed_point_t load_avg; //MLFQS
-int ready_threads; //MLFQS
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -81,8 +80,13 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+void calculate_priority(struct thread* t ,void* aux UNUSED);
+void calculate_cpu(struct thread* t , void* aux UNUSED);
+void calculate_cpus(void);
+void calculate_priorities(void);
 
 bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool thread_priority_cmp_fn2 (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 bool sleep_thread_compare(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
@@ -107,6 +111,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&threads_on_sleep);
+  load_avg = fix_int(0); //MLFQS
+
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -136,7 +142,7 @@ thread_start (void)
 bool sleep_thread_compare(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
   const struct thread_on_sleep_node *node_a = list_entry (a, struct thread_on_sleep_node, elem);
   const struct thread_on_sleep_node *node_b = list_entry (b, struct thread_on_sleep_node, elem);
-  return node_a->awake_time < node_b->awake_time;
+  return node_a->awake_time <= node_b->awake_time;
 }
 
 void thread_sleep(int64_t awake_time){
@@ -306,7 +312,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
+  if(t != idle_thread)
+    list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn2, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -412,7 +419,8 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
-{
+{ 
+  if(thread_mlfqs) return;
   struct thread* t = thread_current();
   int old_priority = t->priority;
   
@@ -443,17 +451,26 @@ thread_get_priority (void)
 void
 thread_set_nice (int new_nice UNUSED)
 {
-  thread_current()->niceValue = new_nice;
-  calculatePriority();
+  struct thread* t = thread_current();
+  t->niceValue = new_nice;
+  calculate_priority(t , NULL);
+  if(t == idle_thread) return;
+  if(t->status == THREAD_RUNNING){
+    thread_yield();
+  }else if (t->status == THREAD_READY){
+    list_remove (&t->elem);
+    list_insert_ordered (&ready_list, &t->elem, thread_priority_cmp_fn2, NULL);
+  }
 }
 
 //priority = PRI_MAX − (recent_cpu/4) − (nice × 2)
-void calculatePriority(){
-  fixed_point_t div = fix_unscale((thread_current()->recent_cpu), 4);
-  fixed_point_t mul = fix_scale( fix_int(thread_current()->niceValue), 2);
-  fixed_point_t res = fix_sub(fix_int(PRI_MAX), fix_sub(div, mul));
-  thread_current ()->priority = fix_trunc(res);
+void calculate_priority(struct thread* t ,void* aux UNUSED){
+  fixed_point_t div = fix_unscale((t->recent_cpu), 4);
+  fixed_point_t mul = fix_int(t->niceValue * 2);
+  fixed_point_t res = fix_sub(fix_int(PRI_MAX), fix_add(div, mul));
+  t->priority = fix_trunc(res);
 }
+
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
@@ -461,11 +478,35 @@ thread_get_nice (void)
   return thread_current()->niceValue;
 }
 
+void calculate_cpus(){
+  thread_foreach(calculate_cpu, NULL);
+}
+
+bool thread_priority_cmp_fn2(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  int a_priority = list_entry(a, struct thread, elem)->priority;
+  int b_priority = list_entry(b, struct thread, elem)->priority;
+
+  return a_priority < b_priority;
+}
+
+
+void calculate_priorities(){
+  thread_foreach(calculate_priority, NULL);
+  if(!list_empty(&ready_list)){
+    list_sort(&ready_list, thread_priority_cmp_fn2 , NULL);
+  }
+}
+
 //load_avg = (59/60) × load_avg + (1/60) × ready_threads
-void calculateLoad_AVG(){
+void calculate_load_avg(int64_t ticks){
+  int ready_threads = list_size(&ready_list);
+  if(thread_current() != idle_thread){
+    ready_threads++;
+  }
   fixed_point_t addFirst = fix_unscale(fix_scale(load_avg, 59), 60);
   fixed_point_t addSec = fix_frac(ready_threads, 60);
   load_avg = fix_add(addFirst, addSec);
+  // printf("ready %d\n", ready_threads);
 }
 
 /* Returns 100 times the system load average. */
@@ -476,12 +517,13 @@ thread_get_load_avg (void)
 }
 
 //recent_cpu = (2 × load_avg)/(2 × load_avg + 1) × recent_cpu + nice
-void calculateRecent_CPU(){
+void calculate_cpu(struct thread* t , void* aux UNUSED){
+  if(t == idle_thread) return;
   fixed_point_t mulFirst = fix_scale(load_avg, 2);
   fixed_point_t mulSec = fix_add(mulFirst, fix_int(1));
   fixed_point_t div = fix_div(mulFirst, mulSec);
-  fixed_point_t addFirst = fix_mul(div, thread_current()->recent_cpu);
-  thread_current ()->recent_cpu = fix_add(addFirst, fix_int(thread_current()->niceValue));
+  fixed_point_t addFirst = fix_mul(div, t->recent_cpu);
+  t->recent_cpu = fix_add(addFirst, fix_int(t->niceValue));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -572,7 +614,6 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
-
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
@@ -580,7 +621,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->fd_counter = 2;
-
+  if (thread_mlfqs){
+    calculate_cpu (t, NULL);
+    calculate_priority(t, NULL);
+  }
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

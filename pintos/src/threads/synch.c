@@ -302,7 +302,9 @@ lock_release (struct lock *lock)
       waiter_threads_max_priority = list_entry (list_max (&lock->semaphore.waiters, thread_priority_cmp_fn, NULL), struct thread, elem)->priority;
       lock->priority = waiter_threads_max_priority;
     }
-
+  }else{
+    intr_set_level (old_level);
+    thread_yield();
   }
 
   intr_set_level (old_level);

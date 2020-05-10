@@ -264,12 +264,46 @@ lock_try_acquire (struct lock *lock)
    handler. */
 void
 lock_release (struct lock *lock)
-{
+{ 
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  struct thread * t = thread_current ();
+  int old_priority = t->priority;
+
+  old_level = intr_disable ();
+
+  list_remove(&lock->elem);
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+
+  if (!thread_mlfqs) {
+    t->priority = t->base_priority;
+    if (!list_empty (&t->locks)) {
+      int held_locks_max_priority;
+      held_locks_max_priority = list_entry (list_max (&t->locks, lock_priority_cmp_fn, NULL), struct lock, elem)->priority;
+      if (held_locks_max_priority > t->priority) {
+        t->priority = held_locks_max_priority;
+      }
+    }
+
+
+    lock->priority = 0;
+    if (!list_empty (&lock->semaphore.waiters)) {
+      int waiter_threads_max_priority;
+      waiter_threads_max_priority = list_entry (list_max (&lock->semaphore.waiters, thread_priority_cmp_fn, NULL), struct thread, elem)->priority;
+      lock->priority = waiter_threads_max_priority;
+    }
+
+  }
+
+  intr_set_level (old_level);
+
+  if (thread_current ()->priority < old_priority) {
+    thread_yield ();
+  }
 }
 
 /* Returns true if the current thread holds LOCK, false

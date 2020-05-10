@@ -411,16 +411,21 @@ thread_set_priority (int new_priority)
 {
   struct thread* t = thread_current();
   int old_priority = t->priority;
-  t->priority = new_priority;
+  
+  t->base_priority = new_priority;
+  t->priority = t->base_priority;
+  if (!list_empty (&t->locks)) {
+    int held_locks_max_priority;
+    held_locks_max_priority = list_entry (list_max (&t->locks, lock_priority_cmp_fn, NULL),struct lock, elem)->priority;
+    if (held_locks_max_priority > t->priority) {
+      t->priority = held_locks_max_priority;
+    }
+  }
 
-  // enum intr_level old_level = intr_disable();
-  // if (t->status == THREAD_READY) {
-  //   list_remove(&t->elem);
-  //   list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp_fn, NULL);
-  // }
-  // intr_set_level(old_level);
+  if (thread_current ()->priority < old_priority) {
+    thread_yield ();
+  }
 
-  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -559,6 +564,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init(&t->locks);
   t->waiting_lock = NULL;
+  t->base_priority = priority;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

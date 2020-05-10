@@ -105,6 +105,10 @@ struct thread
    int base_priority;
    struct lock * waiting_lock; 
 
+   int niceValue; //MLFQS
+   int recent_cpu; //MLFQS
+
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */ 

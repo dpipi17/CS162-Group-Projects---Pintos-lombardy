@@ -67,6 +67,8 @@ struct thread_on_sleep_node {
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+fixed_point_t load_avg; //MLFQS
+int ready_threads; //MLFQS
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -447,7 +449,7 @@ thread_set_nice (int new_nice UNUSED)
 
 //priority = PRI_MAX − (recent_cpu/4) − (nice × 2)
 void calculatePriority(){
-  fixed_point_t div = fix_unscale( fix_int(thread_current()->recent_cpu), 4);
+  fixed_point_t div = fix_unscale((thread_current()->recent_cpu), 4);
   fixed_point_t mul = fix_scale( fix_int(thread_current()->niceValue), 2);
   fixed_point_t res = fix_sub(fix_int(PRI_MAX), fix_sub(div, mul));
   thread_current ()->priority = fix_trunc(res);
@@ -459,12 +461,27 @@ thread_get_nice (void)
   return thread_current()->niceValue;
 }
 
+//load_avg = (59/60) × load_avg + (1/60) × ready_threads
+void calculateLoad_AVG(){
+  fixed_point_t addFirst = fix_unscale(fix_scale(load_avg, 59), 60);
+  fixed_point_t addSec = fix_frac(ready_threads, 60);
+  load_avg = fix_add(addFirst, addSec);
+}
+
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return fix_round(fix_scale(load_avg, 100));
+}
+
+//recent_cpu = (2 × load_avg)/(2 × load_avg + 1) × recent_cpu + nice
+void calculateRecent_CPU(){
+  fixed_point_t mulFirst = fix_scale(load_avg, 2);
+  fixed_point_t mulSec = fix_add(mulFirst, fix_int(1));
+  fixed_point_t div = fix_div(mulFirst, mulSec);
+  fixed_point_t addFirst = fix_mul(div, thread_current()->recent_cpu);
+  thread_current ()->recent_cpu = fix_add(addFirst, fix_int(thread_current()->niceValue));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -472,7 +489,7 @@ int
 thread_get_recent_cpu (void)
 {
   /* Not yet implemented. */
-  return 0;
+  return fix_round(fix_scale(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.

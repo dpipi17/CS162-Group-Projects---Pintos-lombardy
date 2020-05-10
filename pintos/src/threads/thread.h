@@ -106,7 +106,7 @@ struct thread
    struct lock * waiting_lock; 
 
    int niceValue; //MLFQS
-   int recent_cpu; //MLFQS
+   fixed_point_t recent_cpu; //MLFQS
 
 
 #ifdef USERPROG

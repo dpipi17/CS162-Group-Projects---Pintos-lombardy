@@ -183,7 +183,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     fixed_point_t one = fix_int(1);
     t->recent_cpu = fix_add(t->recent_cpu, one);
     if (ticks % TIMER_FREQ == 0){
-      calculate_load_avg(ticks);
+      calculate_load_avg();
       calculate_cpus();
     }
     if (ticks % 4 == 0) calculate_priorities();

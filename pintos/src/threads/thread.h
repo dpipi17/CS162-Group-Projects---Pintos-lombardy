@@ -105,8 +105,8 @@ struct thread
    int base_priority;
    struct lock * waiting_lock; 
 
-   int niceValue; //MLFQS
-   fixed_point_t recent_cpu; //MLFQS
+   int nice_value;
+   fixed_point_t recent_cpu; 
 
 
 #ifdef USERPROG
@@ -158,7 +158,7 @@ int thread_get_load_avg (void);
 void thread_sleep(int64_t awake_time);
 bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 void calculate_cpus(void);
-void calculate_load_avg(int64_t ticks);
+void calculate_load_avg(void);
 void calculate_priorities(void);
 
 //Our Structure to map "fd" and "struct file"

@@ -84,6 +84,7 @@ void calculate_priority(struct thread* t ,void* aux UNUSED);
 void calculate_cpu(struct thread* t , void* aux UNUSED);
 void calculate_cpus(void);
 void calculate_priorities(void);
+void calculate_load_avg(void);
 
 bool thread_priority_cmp_fn (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 bool thread_priority_cmp_fn2 (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
@@ -111,7 +112,7 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&threads_on_sleep);
-  load_avg = fix_int(0); //MLFQS
+  load_avg = fix_int(0); 
 
 
   /* Set up a thread structure for the running thread. */
@@ -452,7 +453,7 @@ void
 thread_set_nice (int new_nice UNUSED)
 {
   struct thread* t = thread_current();
-  t->niceValue = new_nice;
+  t->nice_value = new_nice;
   calculate_priority(t , NULL);
   if(t == idle_thread) return;
   if(t->status == THREAD_RUNNING){
@@ -466,7 +467,7 @@ thread_set_nice (int new_nice UNUSED)
 //priority = PRI_MAX − (recent_cpu/4) − (nice × 2)
 void calculate_priority(struct thread* t ,void* aux UNUSED){
   fixed_point_t div = fix_unscale((t->recent_cpu), 4);
-  fixed_point_t mul = fix_int(t->niceValue * 2);
+  fixed_point_t mul = fix_int(t->nice_value * 2);
   fixed_point_t res = fix_sub(fix_int(PRI_MAX), fix_add(div, mul));
   t->priority = fix_trunc(res);
 }
@@ -475,7 +476,7 @@ void calculate_priority(struct thread* t ,void* aux UNUSED){
 int
 thread_get_nice (void)
 {
-  return thread_current()->niceValue;
+  return thread_current()->nice_value;
 }
 
 void calculate_cpus(){
@@ -485,7 +486,6 @@ void calculate_cpus(){
 bool thread_priority_cmp_fn2(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
   int a_priority = list_entry(a, struct thread, elem)->priority;
   int b_priority = list_entry(b, struct thread, elem)->priority;
-
   return a_priority < b_priority;
 }
 
@@ -497,16 +497,14 @@ void calculate_priorities(){
   }
 }
 
-//load_avg = (59/60) × load_avg + (1/60) × ready_threads
-void calculate_load_avg(int64_t ticks){
+void calculate_load_avg(){
   int ready_threads = list_size(&ready_list);
   if(thread_current() != idle_thread){
     ready_threads++;
   }
-  fixed_point_t addFirst = fix_unscale(fix_scale(load_avg, 59), 60);
-  fixed_point_t addSec = fix_frac(ready_threads, 60);
-  load_avg = fix_add(addFirst, addSec);
-  // printf("ready %d\n", ready_threads);
+  fixed_point_t add_first = fix_unscale(fix_scale(load_avg, 59), 60);
+  fixed_point_t add_sec = fix_frac(ready_threads, 60);
+  load_avg = fix_add(add_first, add_sec);
 }
 
 /* Returns 100 times the system load average. */
@@ -519,11 +517,11 @@ thread_get_load_avg (void)
 //recent_cpu = (2 × load_avg)/(2 × load_avg + 1) × recent_cpu + nice
 void calculate_cpu(struct thread* t , void* aux UNUSED){
   if(t == idle_thread) return;
-  fixed_point_t mulFirst = fix_scale(load_avg, 2);
-  fixed_point_t mulSec = fix_add(mulFirst, fix_int(1));
-  fixed_point_t div = fix_div(mulFirst, mulSec);
-  fixed_point_t addFirst = fix_mul(div, t->recent_cpu);
-  t->recent_cpu = fix_add(addFirst, fix_int(t->niceValue));
+  fixed_point_t mul_first = fix_scale(load_avg, 2);
+  fixed_point_t mul_sec = fix_add(mul_first, fix_int(1));
+  fixed_point_t div = fix_div(mul_first, mul_sec);
+  fixed_point_t add_first = fix_mul(div, t->recent_cpu);
+  t->recent_cpu = fix_add(add_first, fix_int(t->nice_value));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */

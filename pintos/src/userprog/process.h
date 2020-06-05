@@ -17,4 +17,13 @@ struct process_node {
   bool successful;             
 };
 
+struct mmap_node {
+  struct list_elem elem;
+  
+  int id;
+  struct file * mapped_file;
+  void * base_addr;
+};
+
+
 #endif /* userprog/process.h */

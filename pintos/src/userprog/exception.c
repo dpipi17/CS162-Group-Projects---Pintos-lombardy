@@ -149,14 +149,29 @@ page_fault (struct intr_frame *f)
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
 
-	/* 	To implement virtual memory, delete the rest of the function
-		body, and replace it with code that brings in the page to
-		which fault_addr refers. */
-	printf ("Page fault at %p: %s error %s page in %s context.\n",
-			fault_addr,
-			not_present ? "not present" : "rights violation",
-			write ? "writing" : "reading",
-			user ? "user" : "kernel");
-	kill (f);
+	bool invalid;
+	if (fault_addr == NULL || is_kernel_vaddr(fault_addr) ||
+		fault_addr < 0x08048000 || fault_addr > ((char*)f->esp) - 32) {
+		invalid = true;
+	}
+
+	uint32_t pg = pg_no(fault_addr);
+
+	/*
+	if (page_table.contains(pg)) {
+		// map frame to pg
+	} else {
+		invalid = true;
+	}
+	*/
+
+	if (invalid || !user) {
+		printf ("Page fault at %p: %s error %s page in %s context.\n",
+				fault_addr,
+				not_present ? "not present" : "rights violation",
+				write ? "writing" : "reading",
+				user ? "user" : "kernel");
+		kill (f);
+	}
 }
 

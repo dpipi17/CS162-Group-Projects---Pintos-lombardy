@@ -12,9 +12,14 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+#ifdef VM
+#include "vm/page.h"
+#endif
+
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -636,6 +641,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->waiting_lock = NULL;
   t->base_priority = priority;
 
+  #ifdef VM
+    t->page_table = page_table_init();
+  #endif
   // project 3
   list_init (&t->mmap_node_list);
   t->max_mmap_node_id = 0;

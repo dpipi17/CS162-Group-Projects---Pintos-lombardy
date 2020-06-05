@@ -114,6 +114,11 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */ 
     struct file* exec_file;
 #endif
+#ifdef VM
+     struct hash * page_table;  
+#endif
+                 
+
 
    // project 3
    struct list mmap_node_list;

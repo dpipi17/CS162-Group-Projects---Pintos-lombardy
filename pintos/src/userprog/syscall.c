@@ -23,6 +23,8 @@ struct file_node* get_file_node_from_fd(int givenFd);
 void exit_with_error_code(struct intr_frame *f);
 typedef void syscall_fun_t(struct intr_frame *f UNUSED); 
 
+struct mmap_node* get_mmap_node_by_id(int id);
+
 //Variable
 static struct lock filesystem_lock;
 
@@ -37,7 +39,7 @@ typedef struct sycall_desc {
 syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process System Calls
               syscall_create, syscall_remove, syscall_open, syscall_filesize, //File System Calls
               syscall_read, syscall_write, syscall_seek, syscall_tell, syscall_close,
-              syscall_practice; //Practice System Call
+              syscall_practice, syscall_mmap, syscall_munmap; //Practice System Call
 
 
 syscall_desc_t syscall_table[] = {
@@ -341,6 +343,86 @@ void syscall_close(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
+void syscall_mmap(struct intr_frame *f){
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) return;
+  uint32_t *arguments = (uint32_t*)f->esp;
+
+  int fd = arguments[1];
+  void * base_addr = (void*)arguments[2];
+  struct thread * current_thread = thread_current();
+  
+  lock_acquire(&filesystem_lock);
+
+  struct file_node * file_node = get_file_node_from_fd(fd);
+  if(file_node == NULL || file_node->file == NULL){
+    f->eax = -1;
+    lock_release(&filesystem_lock);
+    return;
+  }
+
+  struct file * reopened_file;
+  reopened_file = file_reopen(file_node->file);
+  if (reopened_file == NULL || file_length(reopened_file) == 0) {
+    f->eax = -1;
+    lock_release(&filesystem_lock);
+    return;
+  }
+
+  size_t i, file_len;
+  file_len = file_length(reopened_file);
+  for (i = 0; i < file_len; i += PGSIZE) {
+    void * curr_page;
+    curr_page = base_addr + i;
+    // TODO check if this page is free, else wrire -1 in f->eax and return
+  }
+
+  struct mmap_node * new_mmap_node; 
+  new_mmap_node = (struct mmap_node *)malloc(sizeof(struct mmap_node));
+  new_mmap_node->mapped_file = reopened_file;
+  new_mmap_node->base_addr = base_addr;
+  
+  current_thread->max_mmap_node_id += 1;
+  new_mmap_node->id = current_thread->max_mmap_node_id;
+  list_push_back(&current_thread->mmap_node_list, &new_mmap_node->elem);
+
+  for (i = 0; i < file_len; i += PGSIZE) {
+    void * curr_page;
+    curr_page = base_addr + i;
+    // TODO register this page in supplementary page table
+  }
+
+  // write new nodes id into f->eax
+  f->eax = new_mmap_node->id;
+  lock_release(&filesystem_lock);
+}
+
+void syscall_munmap(struct intr_frame *f){
+  uint32_t *arguments = (uint32_t*)f->esp;
+  int id = arguments[1];
+
+  lock_acquire(&filesystem_lock);
+
+  struct mmap_node * node = get_mmap_node_by_id(id);
+  if(node == NULL){
+    lock_release(&filesystem_lock);
+    return;
+  }
+
+  struct file * file;
+  file = node->mapped_file;
+
+  size_t i, file_len;
+  file_len = file_length(file);
+  for (i = 0; i < file_len; i += PGSIZE) {
+    void * curr_page;
+    curr_page = node->base_addr + i;
+    // TODO free this page
+  }
+  list_remove(&node->elem);
+
+  lock_release(&filesystem_lock);
+}
+
 
 
 //Helpers #############################################################################
@@ -394,6 +476,22 @@ struct file_node* get_file_node_from_fd(int givenFd){
     struct file_node* curr_file = list_entry (e, struct file_node, elem); //One of my files
     if(curr_file->fd == givenFd){ 
       return curr_file;
+    }
+  }
+  return NULL;
+}
+
+/* Get mmap_node according to id
+ */
+struct mmap_node* get_mmap_node_by_id(int id) {
+  struct list_elem* e; 
+  struct list* curr_list = &(thread_current()->mmap_node_list);
+
+  if(list_size(curr_list) == (size_t)(0)) return NULL;
+  for(e = list_begin (curr_list); e != list_end (curr_list); e = list_next (e)){
+    struct mmap_node * curr_node = list_entry (e, struct mmap_node, elem); 
+    if(curr_node->id == id){ 
+      return curr_node;
     }
   }
   return NULL;

@@ -627,12 +627,18 @@ init_thread (struct thread *t, const char *name, int priority)
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
 
-  list_init (&t->file_list); //Project 2
+  //Project 2
+  list_init (&t->file_list);
   list_init(&t->child_process_nodes);
 
+  // Project 1
   list_init(&t->locks);
   t->waiting_lock = NULL;
   t->base_priority = priority;
+
+  // project 3
+  list_init (&t->mmap_node_list);
+  t->max_mmap_node_id = 0;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

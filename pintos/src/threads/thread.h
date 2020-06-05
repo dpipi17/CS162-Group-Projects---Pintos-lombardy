@@ -115,6 +115,10 @@ struct thread
     struct file* exec_file;
 #endif
 
+   // project 3
+   struct list mmap_node_list;
+   int max_mmap_node_id;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

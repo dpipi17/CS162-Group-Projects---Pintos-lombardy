@@ -343,6 +343,7 @@ void syscall_close(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
+#ifdef VM
 void syscall_mmap(struct intr_frame *f){
   if(!is_valid_ptr(f->esp , 2 * sizeof(int))) return;
   uint32_t *arguments = (uint32_t*)f->esp;
@@ -422,7 +423,7 @@ void syscall_munmap(struct intr_frame *f){
 
   lock_release(&filesystem_lock);
 }
-
+#endif
 
 
 //Helpers #############################################################################

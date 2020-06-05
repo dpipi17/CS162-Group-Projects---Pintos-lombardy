@@ -114,15 +114,14 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */ 
     struct file* exec_file;
 #endif
+
 #ifdef VM
-     struct hash * page_table;  
+   // project 3
+   struct hash * page_table;
+   struct list mmap_node_list;
+   int max_mmap_node_id;  
 #endif
                  
-
-
-   // project 3
-   struct list mmap_node_list;
-   int max_mmap_node_id;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

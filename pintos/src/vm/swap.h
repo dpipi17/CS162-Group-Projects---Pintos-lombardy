@@ -1,3 +1,6 @@
+#ifndef VM_SWAP_H
+#define VM_SWAP_H
+
 #include <bitmap.h>
 #include "devices/block.h"
 
@@ -19,3 +22,5 @@ void swap_free(size_t index);
  * Helper functions
  */
 void update_bitmap(size_t index, bool value);
+
+#endif /* vm/swap.h */

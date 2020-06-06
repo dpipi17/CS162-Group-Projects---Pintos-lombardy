@@ -5,6 +5,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
+#include "vm/frame.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -151,21 +153,23 @@ page_fault (struct intr_frame *f)
 
 	bool invalid;
 	if (fault_addr == NULL || is_kernel_vaddr(fault_addr) ||
-		fault_addr < 0x08048000 || fault_addr > ((char*)f->esp) - 32) {
+		fault_addr < 0x08048000 || fault_addr > ((char*)f->esp) - 32 || !user) {
 		invalid = true;
 	}
 
-	uint32_t pg = pg_no(fault_addr);
-
-	/*
-	if (page_table.contains(pg)) {
-		// map frame to pg
-	} else {
-		invalid = true;
+	
+	if (!invalid) {
+    	void* pg = pg_round_down(fault_addr);
+		void* frame = page_table_get_page(thread_current()->page_table, pg);
+		if (frame != NULL) {
+			frame = allocate_frame(0, pg);
+			page_table_set_page(thread_current()->page_table, pg, frame);
+		} else {
+			invalid = true;
+		}
 	}
-	*/
 
-	if (invalid || !user) {
+	if (invalid) {
 		printf ("Page fault at %p: %s error %s page in %s context.\n",
 				fault_addr,
 				not_present ? "not present" : "rights violation",

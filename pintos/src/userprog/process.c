@@ -21,6 +21,7 @@
 #include "threads/malloc.h"
 #include "vm/frame.h"
 
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static struct process_node * child_process_node (pid_t pid);
@@ -37,7 +38,7 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = allocate_frame(0);
+  fn_copy = allocate_frame(0, NULL);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -483,7 +484,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = allocate_frame(PAL_USER);
+      uint8_t *kpage = allocate_frame(PAL_USER, upage);
       if (kpage == NULL)
         return false;
 
@@ -518,7 +519,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = allocate_frame(PAL_USER | PAL_ZERO);
+  kpage = allocate_frame(PAL_USER | PAL_ZERO, PHYS_BASE - PGSIZE);
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);

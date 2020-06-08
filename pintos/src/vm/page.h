@@ -3,6 +3,8 @@
 
 #include "lib/kernel/hash.h"
 #include "threads/palloc.h"
+#include "vm/frame.h"
+#include "filesys/file.h"
 
 struct page_table_elem{
     struct hash_elem helem;  

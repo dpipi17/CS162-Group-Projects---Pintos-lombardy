@@ -643,7 +643,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef VM
   // project 3
-  t->page_table = page_table_init();
+ 
   list_init (&t->mmap_node_list);
   t->max_mmap_node_id = 0;
 #endif

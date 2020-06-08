@@ -297,6 +297,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   int i;
 
   /* Allocate and activate page directory. */
+  #ifdef VM
+  // project 3
+    t->page_table = page_table_init();
+  #endif
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
     goto done;

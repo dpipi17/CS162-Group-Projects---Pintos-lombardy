@@ -15,11 +15,9 @@ struct page_table_elem{
     bool accessed;
     bool dirty;
     size_t swap_index;
-    struct file * file;
+    struct file * file; 
     size_t offset;
 };
-
-static struct hash page_table;
 
 struct hash * page_table_init(void);
 void page_table_destroy (struct hash *);

@@ -17,6 +17,8 @@ struct page_table_elem{
     size_t offset;
 };
 
+static struct hash page_table;
+
 struct hash * page_table_init(void);
 void page_table_destroy (struct hash *);
 bool page_table_set_page (struct hash *, void *upage, void *kpage);

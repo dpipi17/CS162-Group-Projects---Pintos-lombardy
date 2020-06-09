@@ -13,6 +13,10 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/malloc.h"
+#ifdef VM
+#include "vm/page.h"
+#include "vm/frame.h"
+#endif
 
 
 //Function Declarations
@@ -210,7 +214,6 @@ void syscall_filesize(struct intr_frame *f UNUSED){
   if (!are_valid_args(&arguments[1], 1)){
     f->eax = -1;
     return;
-    //thread_exit();
   }
     
   lock_acquire(&filesystem_lock);
@@ -374,7 +377,15 @@ void syscall_mmap(struct intr_frame *f){
   for (i = 0; i < file_len; i += PGSIZE) {
     void * curr_page;
     curr_page = base_addr + i;
-    // TODO check if this page is free, else wrire -1 in f->eax and return
+    
+    void* frame;
+    frame = page_table_get_page(thread_current()->page_table, curr_page);
+    
+    // check if this page is free, else wrire -1 in f->eax and return
+    if (frame != NULL) {
+      f->eax = -1;
+      return;
+    }
   }
 
   struct mmap_node * new_mmap_node; 
@@ -389,7 +400,9 @@ void syscall_mmap(struct intr_frame *f){
   for (i = 0; i < file_len; i += PGSIZE) {
     void * curr_page;
     curr_page = base_addr + i;
-    // TODO register this page in supplementary page table
+
+    // register this page in supplementary page table
+    page_table_mmap(thread_current()->page_table, curr_page, reopened_file, i, true);
   }
 
   // write new nodes id into f->eax
@@ -417,7 +430,9 @@ void syscall_munmap(struct intr_frame *f){
   for (i = 0; i < file_len; i += PGSIZE) {
     void * curr_page;
     curr_page = node->base_addr + i;
-    // TODO free this page
+    
+    // free this page
+    page_table_unmap(thread_current()->page_table, curr_page);
   }
   list_remove(&node->elem);
 
@@ -482,6 +497,7 @@ struct file_node* get_file_node_from_fd(int givenFd){
   return NULL;
 }
 
+#ifdef VM
 /* Get mmap_node according to id
  */
 struct mmap_node* get_mmap_node_by_id(int id) {
@@ -497,6 +513,7 @@ struct mmap_node* get_mmap_node_by_id(int id) {
   }
   return NULL;
 }
+#endif
 
 /* Returns -1 and exits
  */

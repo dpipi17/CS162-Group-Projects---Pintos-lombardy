@@ -14,9 +14,9 @@ static bool less_func(const struct hash_elem * a, const struct hash_elem * b, vo
 
 
 struct hash * page_table_init(){
-    struct hash* supp_table = (struct hash*)malloc(sizeof(int));
-    hash_init(thread_current()->page_table, hash_func, less_func, NULL);
-    return NULL;
+    struct hash* supp_table = (struct hash*)malloc(sizeof(struct hash));
+    hash_init(supp_table, hash_func, less_func, NULL);
+    return supp_table;
 }
 
 void page_table_destroy (struct hash *table){
@@ -26,37 +26,45 @@ void page_table_destroy (struct hash *table){
 bool page_table_set_page (struct hash *table, void *upage, void *kpage){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    if (elem == NULL) {
+        struct page_table_elem* new_elem = malloc(sizeof(struct page_table_elem));
+        new_elem->upage = upage;
+        new_elem->kpage = kpage;
+        hash_insert(table, new_elem);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void *page_table_get_page (struct hash *table, const void *upage){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
-    return elem->kpage;
+    struct page_table_elem *elem = search_in_table(table, upage);
+    
+    return elem ? elem->kpage : NULL;
 }
+
 void page_table_clear_page (struct hash *table, void *upage){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
-    hash_delete(thread_current()->page_table, &elem->helem);
+    hash_delete(table, &elem->helem);
     free_frame(elem->kpage);
     free(elem);
 }
 bool page_table_is_dirty (struct hash *table, const void *upage){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     return elem->dirty;
 }
 void page_table_set_dirty (struct hash *table, const void *upage, bool dirty){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     elem->dirty = dirty;
 }
@@ -65,14 +73,14 @@ void page_table_set_dirty (struct hash *table, const void *upage, bool dirty){
 bool page_table_is_accessed (struct hash *table, const void *upage){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     return elem->accessed;
 }
 void page_table_set_accessed (struct hash *table, const void *upage, bool accessed){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     elem->accessed = accessed;
 }
@@ -80,7 +88,7 @@ void page_table_set_accessed (struct hash *table, const void *upage, bool access
 void page_table_evict_page(struct hash *table, void *upage, size_t swap_index){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(thread_current()->page_table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     elem->valid = false;
     elem->swap_index = swap_index;
@@ -124,7 +132,7 @@ void write_in_file(struct file* file, void* page , size_t offset, size_t size){
 struct page_table_elem* search_in_table(struct hash * table, void *upage){
     struct page_table_elem to_find;
     to_find.upage = upage;
-    struct hash_elem *h = hash_find(&table, &(to_find.helem));
+    struct hash_elem *h = hash_find(table, &(to_find.helem));
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     return elem;
 }
@@ -133,7 +141,7 @@ struct page_table_elem* search_in_table(struct hash * table, void *upage){
 
 static unsigned hash_func(const struct hash_elem *elem, void *aux UNUSED){
     struct page_table_elem *entry = hash_entry(elem, struct page_table_elem, helem);
-    return hash_bytes( &entry->upage, sizeof entry->upage );
+    return hash_int(entry->upage);
 }
 
 static bool less_func(const struct hash_elem * a, const struct hash_elem *b, void *aux UNUSED){

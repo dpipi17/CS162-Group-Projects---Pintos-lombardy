@@ -459,6 +459,14 @@ bool is_valid_ptr(void* pptr, size_t size) {
   if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size - 1) == NULL)
     return false;
 
+  // #ifdef VM
+  // struct hash* page_table = current_thread->page_table;
+
+  // if (page_table_get_page(page_table, ptr) == NULL ||
+  //     page_table_get_page(page_table, ptr + size - 1) == NULL)
+  //   return false;
+  // #endif
+  
   return true;
 }
 

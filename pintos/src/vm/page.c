@@ -6,6 +6,7 @@
 #include "threads/palloc.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "vm/swap.h"
 
 struct page_table_elem* search_in_table(struct hash * table, void *upage);
 void write_in_file(struct file* file, void* upage , size_t offset, size_t size);
@@ -41,57 +42,51 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
 
 void *page_table_get_page (struct hash *table, const void *upage){
     struct page_table_elem *elem = search_in_table(table, upage);
+    if (elem == NULL)
+        return NULL;
     
-    return elem ? elem->kpage : NULL;
+    if (!elem->valid) {
+        elem->kpage = evict_frame(upage);
+        swap_read(elem->swap_index, elem->kpage);
+        elem->valid = true;
+        pagedir_set_page(thread_current()->pagedir, upage, elem->kpage, true);
+    }
+
+    return elem->kpage;
 }
 
 void page_table_clear_page (struct hash *table, void *upage){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
     hash_delete(table, &elem->helem);
     free_frame(elem->kpage);
     free(elem);
 }
 bool page_table_is_dirty (struct hash *table, const void *upage){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
+
     return elem->dirty;
 }
 void page_table_set_dirty (struct hash *table, const void *upage, bool dirty){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
     elem->dirty = dirty;
 }
 
 
 bool page_table_is_accessed (struct hash *table, const void *upage){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
+
     return elem->accessed;
 }
 void page_table_set_accessed (struct hash *table, const void *upage, bool accessed){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
     elem->accessed = accessed;
 }
 
 void page_table_evict_page(struct hash *table, void *upage, size_t swap_index){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
     elem->valid = false;
     elem->swap_index = swap_index;
+    pagedir_clear_page(thread_current()->pagedir, upage);
 }
 
 void page_table_mmap(struct hash * table, void *upage, struct file * file, size_t offset, bool writeable){

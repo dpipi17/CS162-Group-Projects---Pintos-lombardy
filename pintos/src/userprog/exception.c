@@ -9,6 +9,11 @@
 #include "vm/page.h"
 #include "vm/frame.h"
 
+#ifndef VM
+#define allocate_frame(x, y) palloc_get_page(x)
+#define free_frame(x) palloc_free_page(x)
+#endif
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -164,10 +169,12 @@ page_fault (struct intr_frame *f)
 		invalid = true;
     }
 
-	if (!invalid) {
+    if (!invalid) {
 		void *pg = pg_round_down(fault_addr);
 		void *frame = allocate_frame(0, pg);
+		#ifdef VM
 		page_table_set_page(thread_current()->page_table, pg, frame);
+		#endif
 		pagedir_set_page(thread_current()->pagedir, pg, frame, true);
 	} else {
 		printf("Page fault at %p: %s error %s page in %s context.\n",

@@ -22,6 +22,10 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 
+#ifndef VM
+#define allocate_frame(x, y) palloc_get_page(x)
+#define free_frame(x) palloc_free_page(x)
+#endif
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);

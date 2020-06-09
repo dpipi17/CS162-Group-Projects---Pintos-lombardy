@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
+#include "userprog/pagedir.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -92,6 +93,7 @@ kill (struct intr_frame *f)
 		printf ("%s: dying due to interrupt %#04x (%s).\n",
 				thread_name (), f->vec_no, intr_name (f->vec_no));
 		intr_dump_frame (f);
+		f->eax = -1;
 		thread_exit ();
 
 		case SEL_KCSEG:
@@ -107,6 +109,7 @@ kill (struct intr_frame *f)
 			kernel. */
 		printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
 				f->vec_no, intr_name (f->vec_no), f->cs);
+		f->eax = -1;
 		thread_exit ();
 	}
 }
@@ -151,31 +154,26 @@ page_fault (struct intr_frame *f)
 	write = (f->error_code & PF_W) != 0;
 	user = (f->error_code & PF_U) != 0;
 
-	bool invalid;
-	if (fault_addr == NULL || is_kernel_vaddr(fault_addr) ||
-		fault_addr < 0x08048000 || fault_addr > ((char*)f->esp) - 32 || !user) {
-		invalid = true;
-	}
-
-	
-	if (!invalid) {
-    	void* pg = pg_round_down(fault_addr);
-		void* frame = page_table_get_page(thread_current()->page_table, pg);
-		if (frame != NULL) {
-			frame = allocate_frame(0, pg);
-			page_table_set_page(thread_current()->page_table, pg, frame);
-		} else {
+	bool invalid = false;
+	if (user) {
+		if (fault_addr == NULL || is_kernel_vaddr(fault_addr) ||
+			fault_addr < (void *)0x08048000 || fault_addr < ((char *)f->esp) - 32) {
 			invalid = true;
 		}
-	}
+	} else {
+		invalid = true;
+    }
 
-	if (invalid) {
-		printf ("Page fault at %p: %s error %s page in %s context.\n",
-				fault_addr,
-				not_present ? "not present" : "rights violation",
-				write ? "writing" : "reading",
-				user ? "user" : "kernel");
-		kill (f);
+	if (!invalid) {
+		void *pg = pg_round_down(fault_addr);
+		void *frame = allocate_frame(0, pg);
+		page_table_set_page(thread_current()->page_table, pg, frame);
+		pagedir_set_page(thread_current()->pagedir, pg, frame, true);
+	} else {
+		printf("Page fault at %p: %s error %s page in %s context.\n",
+				fault_addr, not_present ? "not present" : "rights violation",
+				write ? "writing" : "reading", user ? "user" : "kernel");
+		kill(f);
 	}
 }
 

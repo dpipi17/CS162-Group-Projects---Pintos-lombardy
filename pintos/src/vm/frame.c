@@ -73,7 +73,7 @@ struct frame_table_elem* frame_to_evict(){
 
 static unsigned hash_func(const struct hash_elem *elem, void *aux UNUSED){
     struct frame_table_elem *entry = hash_entry(elem, struct frame_table_elem, helem);
-    return hash_bytes( &entry->frame, sizeof entry->frame );
+    return hash_int(entry->frame);
 }
 
 static bool less_func(const struct hash_elem * a, const struct hash_elem *b, void *aux UNUSED){

@@ -171,7 +171,7 @@ page_fault (struct intr_frame *f)
 
     if (!invalid) {
 		void *pg = pg_round_down(fault_addr);
-		void *frame = allocate_frame(0, pg);
+		void *frame = allocate_frame(PAL_USER | PAL_ZERO, pg);
 		#ifdef VM
 		page_table_set_page(thread_current()->page_table, pg, frame);
 		#endif

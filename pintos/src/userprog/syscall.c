@@ -43,7 +43,11 @@ typedef struct sycall_desc {
 syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process System Calls
               syscall_create, syscall_remove, syscall_open, syscall_filesize, //File System Calls
               syscall_read, syscall_write, syscall_seek, syscall_tell, syscall_close,
-              syscall_practice, syscall_mmap, syscall_munmap; //Practice System Call
+              syscall_practice, //Practice System Call
+#ifdef VM
+              syscall_mmap, syscall_munmap
+#endif
+              ;
 
 
 syscall_desc_t syscall_table[] = {
@@ -66,6 +70,10 @@ syscall_desc_t syscall_table[] = {
 
   //Practice System Call
   {syscall_practice},
+#ifdef VM
+  {syscall_mmap},
+  {syscall_munmap},
+#endif
 };
 
 /////////////////////////////////////
@@ -348,11 +356,18 @@ void syscall_close(struct intr_frame *f){
 
 #ifdef VM
 void syscall_mmap(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) return;
+  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) {
+    f->eax = -1;
+    return;
+  }
   uint32_t *arguments = (uint32_t*)f->esp;
 
   int fd = arguments[1];
   void * base_addr = (void*)arguments[2];
+  if(base_addr == NULL || pg_ofs(base_addr) || fd <= 1) {
+    f->eax = -1;
+    return;
+  }
   struct thread * current_thread = thread_current();
   
   lock_acquire(&filesystem_lock);
@@ -380,10 +395,11 @@ void syscall_mmap(struct intr_frame *f){
     
     void* frame;
     frame = page_table_get_page(thread_current()->page_table, curr_page);
-    
+    if(frame == NULL) frame = pagedir_get_page(thread_current()->pagedir , curr_page);
     // check if this page is free, else wrire -1 in f->eax and return
     if (frame != NULL) {
       f->eax = -1;
+      lock_release(&filesystem_lock);
       return;
     }
   }

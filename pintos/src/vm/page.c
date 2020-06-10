@@ -33,6 +33,12 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
         struct page_table_elem* new_elem = malloc(sizeof(struct page_table_elem));
         new_elem->upage = upage;
         new_elem->kpage = kpage;
+        new_elem->valid = true;
+        new_elem->writeable = true;
+        new_elem->accessed = false;
+        new_elem->dirty = false;
+        new_elem->offset = -1;
+        new_elem->file = NULL;
         hash_insert(table, new_elem);
         return true;
     } else {
@@ -74,16 +80,18 @@ void page_table_set_dirty (struct hash *table, const void *upage, bool dirty){
 
 bool page_table_is_accessed (struct hash *table, const void *upage){
     struct page_table_elem *elem = search_in_table(table, upage);
-
-    return elem->accessed;
+    return elem->accessed || pagedir_is_accessed(thread_current()->pagedir , upage);
 }
 void page_table_set_accessed (struct hash *table, const void *upage, bool accessed){
     struct page_table_elem *elem = search_in_table(table, upage);
     elem->accessed = accessed;
+    pagedir_set_accessed(thread_current()->pagedir , upage , accessed);
 }
 
 void page_table_evict_page(struct hash *table, void *upage, size_t swap_index){
     struct page_table_elem *elem = search_in_table(table, upage);
+    elem->dirty = elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage);
+    elem->accessed = elem->accessed || pagedir_is_accessed(thread_current()->pagedir , upage);
     elem->valid = false;
     elem->swap_index = swap_index;
     pagedir_clear_page(thread_current()->pagedir, upage);
@@ -105,7 +113,7 @@ void page_table_mmap(struct hash * table, void *upage, struct file * file, size_
 void page_table_unmap(struct hash * table, void *upage){
     struct page_table_elem* elem = search_in_table(table , upage);
     if(elem->valid){
-        if(elem->dirty) 
+        if(elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage)) 
             write_in_file(elem->file, elem->upage , elem->offset, PGSIZE);
         free_frame(elem->kpage);
     }else{

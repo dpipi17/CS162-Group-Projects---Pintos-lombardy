@@ -356,10 +356,6 @@ void syscall_close(struct intr_frame *f){
 
 #ifdef VM
 void syscall_mmap(struct intr_frame *f){
-  if(!is_valid_ptr(f->esp , 2 * sizeof(int))) {
-    f->eax = -1;
-    return;
-  }
   uint32_t *arguments = (uint32_t*)f->esp;
 
   int fd = arguments[1];
@@ -417,8 +413,11 @@ void syscall_mmap(struct intr_frame *f){
     void * curr_page;
     curr_page = base_addr + i;
 
+    size_t read_bytes_size;
+    read_bytes_size = (i + PGSIZE < file_len ? PGSIZE : file_len - i);
+
     // register this page in supplementary page table
-    page_table_mmap(thread_current()->page_table, curr_page, reopened_file, i, true);
+    page_table_mmap(thread_current()->page_table, curr_page, reopened_file, i, true, read_bytes_size);
   }
 
   // write new nodes id into f->eax
@@ -426,10 +425,7 @@ void syscall_mmap(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
-void syscall_munmap(struct intr_frame *f){
-  uint32_t *arguments = (uint32_t*)f->esp;
-  int id = arguments[1];
-
+void syscall_munmap_wrapper(int id) {
   lock_acquire(&filesystem_lock);
 
   struct mmap_node * node = get_mmap_node_by_id(id);
@@ -447,12 +443,19 @@ void syscall_munmap(struct intr_frame *f){
     void * curr_page;
     curr_page = node->base_addr + i;
     
-    // free this page
-    page_table_unmap(thread_current()->page_table, curr_page);
+    size_t size;
+    size = (i + PGSIZE < file_len) ? PGSIZE : (file_len - i);
+
+    page_table_unmap(thread_current()->page_table, curr_page, size);
   }
   list_remove(&node->elem);
-
   lock_release(&filesystem_lock);
+}
+
+void syscall_munmap(struct intr_frame *f){
+  uint32_t *arguments = (uint32_t*)f->esp;
+  int id = arguments[1];
+  syscall_munmap_wrapper(id);
 }
 #endif
 
@@ -472,17 +475,17 @@ bool is_valid_ptr(void* pptr, size_t size) {
   struct thread* current_thread = thread_current();
   uint32_t pd = current_thread->pagedir; // optional field #ifdef USERPROG
 
+  #ifdef VM
+  struct hash* page_table = current_thread->page_table;
+
+  if (page_table_get_page(page_table, ptr) != NULL &&
+      page_table_get_page(page_table, ptr + size - 1) != NULL)
+    return true;
+  #endif
+
   if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size - 1) == NULL)
     return false;
 
-  // #ifdef VM
-  // struct hash* page_table = current_thread->page_table;
-
-  // if (page_table_get_page(page_table, ptr) == NULL ||
-  //     page_table_get_page(page_table, ptr + size - 1) == NULL)
-  //   return false;
-  // #endif
-  
   return true;
 }
 

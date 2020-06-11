@@ -24,10 +24,14 @@ void free_frame(void* frame){
     struct frame_table_elem to_find;
     to_find.frame = frame;
     struct hash_elem *h = hash_find(&frame_table, &(to_find.helem));
-    struct frame_table_elem *elem = hash_entry(h, struct frame_table_elem, helem);
-    hash_delete(&frame_table, &elem->helem);
-    palloc_free_page(frame);
-    free(elem);
+    if (h != NULL) {
+        struct frame_table_elem *elem = hash_entry(h, struct frame_table_elem, helem);
+        hash_delete(&frame_table, &elem->helem);
+        if (pagedir_get_page(thread_current()->pagedir, elem->upage) == NULL) {
+            palloc_free_page(frame);
+        }
+        free(elem);
+    }
     lock_release(&lock);
 }
 
@@ -66,6 +70,12 @@ struct frame_table_elem* frame_to_evict(){
                 page_table_set_accessed(elem->t->page_table, elem->upage, false);
                 continue;
             }
+
+            struct page_table_elem * page_table_elem = search_in_table(thread_current() -> page_table, elem->upage);
+            if (page_table_elem->not_evict) {
+                continue;
+            }
+
             return elem;
         }while (hash_next (&i));
     }

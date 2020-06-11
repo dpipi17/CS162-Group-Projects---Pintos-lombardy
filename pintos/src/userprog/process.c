@@ -173,6 +173,20 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  #ifdef VM
+  struct list_elem * em;
+  while (!list_empty (&cur->mmap_node_list)) {
+    em = list_pop_back (&cur->mmap_node_list);
+    struct mmap_node * node = list_entry (em, struct mmap_node, elem); 
+    syscall_munmap_wrapper(node->id);
+    free (node);
+  }
+
+  if (cur->page_table != NULL) {
+    page_table_destroy(cur->page_table);
+  }
+  #endif
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;

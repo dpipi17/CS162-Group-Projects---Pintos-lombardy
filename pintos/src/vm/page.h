@@ -17,6 +17,8 @@ struct page_table_elem{
     size_t swap_index;
     struct file * file; 
     size_t offset;
+    size_t read_bytes_size;
+    bool not_evict;
 };
 
 struct hash * page_table_init(void);
@@ -29,7 +31,8 @@ void page_table_set_dirty (struct hash *, const void *upage, bool dirty);
 bool page_table_is_accessed (struct hash *, const void *upage);
 void page_table_set_accessed (struct hash *, const void *upage, bool accessed);
 void page_table_evict_page(struct hash *, void *upage, size_t swap_index); 
-void page_table_mmap(struct hash *, void *upage, struct file * file, size_t offset, bool writeable);
-void page_table_unmap(struct hash *, void *upage);
+void page_table_mmap(struct hash *, void *upage, struct file * file, size_t offset, bool writeable, size_t read_bytes_size);
+void page_table_unmap(struct hash *, void *upage, size_t size);
+struct page_table_elem* search_in_table(struct hash *, void *upage);
 
 #endif

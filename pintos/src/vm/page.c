@@ -6,6 +6,7 @@
 #include "threads/palloc.h"
 #include "userprog/pagedir.h"
 #include "threads/vaddr.h"
+#include "userprog/process.h"
 #include "vm/swap.h"
 
 struct page_table_elem* search_in_table(struct hash * table, void *upage);
@@ -20,15 +21,27 @@ struct hash * page_table_init(){
     return supp_table;
 }
 
+static void
+destroy_func(struct hash_elem *elem, void *aux UNUSED)
+{
+  struct page_table_elem *entry = hash_entry(elem, struct page_table_elem, helem);
+
+  if (entry->kpage != NULL) {
+    free_frame(entry->kpage);
+  } else if(entry->swap_index != -1) {
+    swap_free(entry->swap_index);
+  }
+
+  free (entry);
+}
+
 void page_table_destroy (struct hash *table){
-    
+    hash_destroy(table, destroy_func);
+    free(table);
 }
 
 bool page_table_set_page (struct hash *table, void *upage, void *kpage){
-    struct page_table_elem to_find;
-    to_find.upage = upage;
-    struct hash_elem *h = hash_find(table, &(to_find.helem));
-    struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
+    struct page_table_elem *elem = search_in_table(table, upage);
     if (elem == NULL) {
         struct page_table_elem* new_elem = malloc(sizeof(struct page_table_elem));
         new_elem->upage = upage;
@@ -39,6 +52,8 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
         new_elem->dirty = false;
         new_elem->offset = -1;
         new_elem->file = NULL;
+        new_elem->not_evict = false;
+        new_elem->swap_index = -1;
         hash_insert(table, new_elem);
         return true;
     } else {
@@ -51,11 +66,22 @@ void *page_table_get_page (struct hash *table, const void *upage){
     if (elem == NULL)
         return NULL;
     
-    if (!elem->valid) {
-        elem->kpage = evict_frame(upage);
-        swap_read(elem->swap_index, elem->kpage);
+    if (!elem->valid) {    
+        elem->kpage = allocate_frame(PAL_USER | PAL_ZERO, upage);
+        if (elem->file != NULL) {
+            file_seek (elem->file, elem->offset);
+            size_t n_read = file_read (elem->file, elem->kpage, elem->read_bytes_size);
+            memset(elem->kpage + n_read, 0, PGSIZE - elem->read_bytes_size);
+            elem->not_evict = true;
+        } else if (elem->swap_index != -1) {
+            swap_read(elem->swap_index, elem->kpage);
+            elem->swap_index = -1;
+        }       
+        
         elem->valid = true;
-        pagedir_set_page(thread_current()->pagedir, upage, elem->kpage, true);
+        pagedir_set_page(thread_current()->pagedir, upage, elem->kpage, elem->writeable);
+        // elem->dirty = false;
+        //pagedir_set_dirty(thread_current()->pagedir, upage, elem->dirty);
     }
 
     return elem->kpage;
@@ -94,35 +120,34 @@ void page_table_evict_page(struct hash *table, void *upage, size_t swap_index){
     elem->accessed = elem->accessed || pagedir_is_accessed(thread_current()->pagedir , upage);
     elem->valid = false;
     elem->swap_index = swap_index;
+    elem->kpage = NULL;
     pagedir_clear_page(thread_current()->pagedir, upage);
 }
 
-void page_table_mmap(struct hash * table, void *upage, struct file * file, size_t offset, bool writeable){
+void page_table_mmap(struct hash * table, void *upage, struct file * file, size_t offset, bool writeable, size_t read_bytes_size){
     struct page_table_elem* elem = malloc(sizeof(struct page_table_elem));
     elem->upage = upage;
     elem->kpage = NULL;
-    elem->valid = true;
+    elem->valid = false;
     elem->writeable = writeable;
     elem->accessed = false;
     elem->dirty = false;
     elem->offset = offset;
     elem->file = file;
+    elem->not_evict = false;
+    elem->read_bytes_size = read_bytes_size;
+    elem->swap_index = -1;
     hash_insert(table, &(elem->helem));
 }
 
-void page_table_unmap(struct hash * table, void *upage){
+void page_table_unmap(struct hash * table, void *upage, size_t size) {
     struct page_table_elem* elem = search_in_table(table , upage);
-    if(elem->valid){
-        if(elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage)) 
-            write_in_file(elem->file, elem->upage , elem->offset, PGSIZE);
-        free_frame(elem->kpage);
-    }else{
-        if (elem->dirty) {
-            void *page = allocate_frame(PAL_USER, NULL);
-            swap_read(elem->swap_index, page);
-            write_in_file(elem->file, page, elem->offset, PGSIZE);
-            free_frame(page);
-        } else swap_free (elem->swap_index);
+    if (elem == NULL) return;
+
+    if(elem->valid && elem->kpage != NULL){
+        if(elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage)) {
+            write_in_file(elem->file, elem->upage , elem->offset, size);
+        }
     }
     hash_delete(table, &(elem->helem));
 }
@@ -136,6 +161,7 @@ struct page_table_elem* search_in_table(struct hash * table, void *upage){
     struct page_table_elem to_find;
     to_find.upage = upage;
     struct hash_elem *h = hash_find(table, &(to_find.helem));
+    if (h == NULL) return NULL;
     struct page_table_elem *elem = hash_entry(h, struct page_table_elem, helem);
     return elem;
 }

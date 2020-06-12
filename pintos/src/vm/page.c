@@ -41,6 +41,7 @@ void page_table_destroy (struct hash *table){
 }
 
 bool page_table_set_page (struct hash *table, void *upage, void *kpage){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
     if (elem == NULL) {
         struct page_table_elem* new_elem = malloc(sizeof(struct page_table_elem));
@@ -62,6 +63,7 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
 }
 
 void *page_table_get_page (struct hash *table, const void *upage){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
     if (elem == NULL)
         return NULL;
@@ -88,43 +90,50 @@ void *page_table_get_page (struct hash *table, const void *upage){
 }
 
 void page_table_clear_page (struct hash *table, void *upage){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
     hash_delete(table, &elem->helem);
     free_frame(elem->kpage);
     free(elem);
 }
 bool page_table_is_dirty (struct hash *table, const void *upage){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
 
     return elem->dirty;
 }
 void page_table_set_dirty (struct hash *table, const void *upage, bool dirty){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
     elem->dirty = dirty;
 }
 
 
-bool page_table_is_accessed (struct hash *table, const void *upage){
+bool page_table_is_accessed (struct hash *table, uint32_t * pagedir, const void *upage){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
-    return elem->accessed || pagedir_is_accessed(thread_current()->pagedir , upage);
+    return elem->accessed || pagedir_is_accessed(pagedir , upage);
 }
-void page_table_set_accessed (struct hash *table, const void *upage, bool accessed){
+void page_table_set_accessed (struct hash *table, uint32_t * pagedir,const void *upage, bool accessed){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
     elem->accessed = accessed;
-    pagedir_set_accessed(thread_current()->pagedir , upage , accessed);
+    pagedir_set_accessed(pagedir , upage , accessed);
 }
 
-void page_table_evict_page(struct hash *table, void *upage, size_t swap_index){
+void page_table_evict_page(struct hash *table, uint32_t * pagedir, void *upage, size_t swap_index){
+    upage = pg_round_down(upage);
     struct page_table_elem *elem = search_in_table(table, upage);
-    elem->dirty = elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage);
-    elem->accessed = elem->accessed || pagedir_is_accessed(thread_current()->pagedir , upage);
+    elem->dirty = elem->dirty || pagedir_is_dirty(pagedir , upage);
+    elem->accessed = elem->accessed || pagedir_is_accessed(pagedir , upage);
     elem->valid = false;
     elem->swap_index = swap_index;
     elem->kpage = NULL;
-    pagedir_clear_page(thread_current()->pagedir, upage);
+    pagedir_clear_page(pagedir, upage);
 }
 
 void page_table_mmap(struct hash * table, void *upage, struct file * file, size_t offset, bool writeable, size_t read_bytes_size){
+    upage = pg_round_down(upage);
     struct page_table_elem* elem = malloc(sizeof(struct page_table_elem));
     elem->upage = upage;
     elem->kpage = NULL;
@@ -141,6 +150,7 @@ void page_table_mmap(struct hash * table, void *upage, struct file * file, size_
 }
 
 void page_table_unmap(struct hash * table, void *upage, size_t size) {
+    upage = pg_round_down(upage);
     struct page_table_elem* elem = search_in_table(table , upage);
     if (elem == NULL) return;
 
@@ -158,6 +168,7 @@ void write_in_file(struct file* file, void* page , size_t offset, size_t size){
 }
 
 struct page_table_elem* search_in_table(struct hash * table, void *upage){
+    upage = pg_round_down(upage);
     struct page_table_elem to_find;
     to_find.upage = upage;
     struct hash_elem *h = hash_find(table, &(to_find.helem));

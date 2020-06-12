@@ -198,7 +198,7 @@ void syscall_open(struct intr_frame *f UNUSED){
   uint32_t *arguments = (uint32_t*)f->esp;
   char* filename = arguments[1];
   if(!is_valid_str(filename)) exit_with_error_code(f);
-  
+
   lock_acquire(&filesystem_lock);
   int fd = thread_current()->fd_counter++;
   struct file* file = filesys_open(filename);
@@ -224,7 +224,7 @@ void syscall_filesize(struct intr_frame *f UNUSED){
     f->eax = -1;
     return;
   }
-    
+  
   lock_acquire(&filesystem_lock);
   struct file_node *file_node = get_file_node_from_fd(fd);
   f->eax = file_length(file_node->file);
@@ -236,17 +236,16 @@ void syscall_filesize(struct intr_frame *f UNUSED){
  * or -1 if the file could not be read 
  */
 void syscall_read(struct intr_frame *f UNUSED){
-  lock_acquire(&filesystem_lock);
   if(!is_valid_ptr(f->esp , 3 * sizeof(int))){
     f->eax = -1;
     thread_exit();
   } 
   uint32_t *arguments = (uint32_t*)f->esp;
-  if (!are_valid_args(&arguments[1], 1) || !is_valid_str(arguments[2])){
+  if (!are_valid_args(&arguments[1], 1) || !is_valid_ptr(arguments[2], arguments[3])){
     f->eax = -1;
-    lock_release(&filesystem_lock);
     thread_exit();
   }
+  lock_acquire(&filesystem_lock);
   int fd = (int)arguments[1];
   char* buffer = (char*) arguments[2];
   unsigned size = (unsigned) arguments[3];
@@ -281,7 +280,7 @@ void syscall_write(struct intr_frame *f) {
   int fd = arguments[1];
   char* buff = (char*)arguments[2];
   uint32_t size = (uint32_t)arguments[3];
-
+  
   lock_acquire(&filesystem_lock);
   if (fd == 1) {
     putbuf(buff, size);
@@ -366,7 +365,7 @@ void syscall_mmap(struct intr_frame *f){
     return;
   }
   struct thread * current_thread = thread_current();
-  
+
   lock_acquire(&filesystem_lock);
 
   struct file_node * file_node = get_file_node_from_fd(fd);
@@ -470,24 +469,26 @@ bool is_valid_ptr(void* pptr, size_t size) {
     return false;
 
   char* ptr = (char*)pptr;
-  if (!is_user_vaddr(ptr) || !is_user_vaddr(ptr + size - 1))
-    return false;
-  
+  bool res = true;
+  unsigned i = 0;
   struct thread* current_thread = thread_current();
-  uint32_t pd = current_thread->pagedir; // optional field #ifdef USERPROG
-
-  #ifdef VM
-  struct hash* page_table = current_thread->page_table;
-
-  if (page_table_get_page(page_table, ptr) != NULL &&
-      page_table_get_page(page_table, ptr + size - 1) != NULL)
-    return true;
-  #endif
-
-  if (pagedir_get_page(pd, ptr) == NULL || pagedir_get_page(pd, ptr + size - 1) == NULL)
-    return false;
-
-  return true;
+  for(; i < size; i++){
+    if(!is_user_vaddr(ptr + i)){
+      return false;
+    }
+    
+    #ifdef VM
+    struct hash* page_table = current_thread->page_table;
+    if (page_table_get_page(page_table, ptr + i) == NULL){
+      res = false;
+    }
+    #endif
+    uint32_t pd = current_thread->pagedir; // optional field #ifdef USERPROG
+    if (pagedir_get_page(pd, ptr + i) == NULL){
+      res = false;
+    }
+  }
+  return res;
 }
 
 /* Checks whether given string is valid

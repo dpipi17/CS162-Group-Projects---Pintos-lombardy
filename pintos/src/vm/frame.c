@@ -26,10 +26,10 @@ void free_frame(void* frame){
     struct hash_elem *h = hash_find(&frame_table, &(to_find.helem));
     if (h != NULL) {
         struct frame_table_elem *elem = hash_entry(h, struct frame_table_elem, helem);
-        hash_delete(&frame_table, &elem->helem);
-        if (pagedir_get_page(thread_current()->pagedir, elem->upage) == NULL) {
+        if (pagedir_get_page(elem->t->pagedir, elem->upage) == NULL) {
             palloc_free_page(frame);
         }
+        hash_delete(&frame_table, &elem->helem);
         free(elem);
     }
     lock_release(&lock);
@@ -52,7 +52,7 @@ void* allocate_frame(enum palloc_flags flags, void* upage){
 void* evict_frame(void* upage){
     struct frame_table_elem* elem = frame_to_evict();
     size_t swap_index = swap_write(elem->frame);
-    page_table_evict_page(elem->t->page_table, elem->upage, swap_index); 
+    page_table_evict_page(elem->t->page_table, elem->t->pagedir, elem->upage, swap_index); 
     elem->t = thread_current();
     elem->upage = upage;
     return elem->frame;
@@ -66,12 +66,12 @@ struct frame_table_elem* frame_to_evict(){
         do {
             struct frame_table_elem *elem = hash_entry (hash_cur (&i), struct frame_table_elem, helem);
             if(elem->upage == NULL) continue;
-            if(page_table_is_accessed(elem->t->page_table, elem->upage)){
-                page_table_set_accessed(elem->t->page_table, elem->upage, false);
+            if(page_table_is_accessed(elem->t->page_table, elem->t->pagedir,elem->upage)){
+                page_table_set_accessed(elem->t->page_table, elem->t->pagedir, elem->upage, false);
                 continue;
             }
 
-            struct page_table_elem * page_table_elem = search_in_table(thread_current() -> page_table, elem->upage);
+            struct page_table_elem * page_table_elem = search_in_table(elem->t->page_table, elem->upage);
             if (page_table_elem->not_evict) {
                 continue;
             }

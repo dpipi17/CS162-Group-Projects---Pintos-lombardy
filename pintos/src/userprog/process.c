@@ -572,10 +572,11 @@ install_page (void *upage, void *kpage, bool writable)
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   #ifdef VM 
-  return (pagedir_get_page(t->pagedir, upage) == NULL &&
-          pagedir_set_page(t->pagedir, upage, kpage, writable) &&
-          page_table_get_page(t->page_table, upage) == NULL &&
-          page_table_set_page(t->page_table, upage, kpage));
+  bool res = pagedir_get_page(t->pagedir, upage) == NULL && 
+        pagedir_set_page(t->pagedir, upage, kpage, writable);
+  return  (page_table_get_page(t->page_table, upage) == NULL) &&
+    page_table_set_page(t->page_table, upage, kpage) && res;
+ 
   #else
   return (pagedir_get_page(t->pagedir, upage) == NULL &&
           pagedir_set_page(t->pagedir, upage, kpage, writable));

@@ -43,11 +43,12 @@ typedef struct sycall_desc {
 syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process System Calls
               syscall_create, syscall_remove, syscall_open, syscall_filesize, //File System Calls
               syscall_read, syscall_write, syscall_seek, syscall_tell, syscall_close,
-              syscall_practice, //Practice System Call
 #ifdef VM
-              syscall_mmap, syscall_munmap
+              syscall_practice, syscall_mmap, syscall_munmap;
+#else
+              syscall_practice; //Practice System Call
 #endif
-              ;
+              
 
 
 syscall_desc_t syscall_table[] = {

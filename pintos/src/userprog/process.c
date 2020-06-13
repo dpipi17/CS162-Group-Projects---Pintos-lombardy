@@ -176,7 +176,7 @@ process_exit (void)
   #ifdef VM
   struct list_elem * em;
   while (!list_empty (&cur->mmap_node_list)) {
-    em = list_pop_back (&cur->mmap_node_list);
+    em = list_back (&cur->mmap_node_list);
     struct mmap_node * node = list_entry (em, struct mmap_node, elem); 
     syscall_munmap_wrapper(node->id);
     free (node);

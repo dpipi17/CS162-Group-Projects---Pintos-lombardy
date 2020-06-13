@@ -164,6 +164,7 @@ void page_table_unmap(struct hash * table, void *upage, size_t size) {
 
 void write_in_file(struct file* file, void* page , size_t offset, size_t size){
     //? maybe in loop?
+    file = file_reopen(file);
     file_write_at(file, page , size, offset);
 }
 
@@ -189,3 +190,17 @@ static bool less_func(const struct hash_elem * a, const struct hash_elem *b, voi
     struct page_table_elem *b_elem = hash_entry(b, struct page_table_elem, helem);
     return a_elem->upage < b_elem->upage;
 }
+
+
+// clean
+// pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-clean -a mmap-clean -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-clean < /dev/null 2> tests/vm/mmap-clean.errors > tests/vm/mmap-clean.output
+// perl -I../.. ../../tests/vm/mmap-clean.ck tests/vm/mmap-clean tests/vm/mmap-clean.result
+
+
+//exit
+// pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-exit -a mmap-exit -p tests/vm/child-mm-wrt -a child-mm-wrt --swap-size=4 -- -q  -f run mmap-exit < /dev/null 2> tests/vm/mmap-exit.errors > tests/vm/mmap-exit.output
+// perl -I../.. ../../tests/vm/mmap-exit.ck tests/vm/mmap-exit tests/vm/mmap-exit.result
+
+//parallel
+// pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-parallel -a page-parallel -p tests/vm/child-linear -a child-linear --swap-size=4 -- -q  -f run page-parallel < /dev/null 2> tests/vm/page-parallel.errors > tests/vm/page-parallel.output
+// perl -I../.. ../../tests/vm/page-parallel.ck tests/vm/page-parallel tests/vm/page-parallel.result

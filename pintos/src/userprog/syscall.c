@@ -241,14 +241,24 @@ void syscall_read(struct intr_frame *f UNUSED){
     thread_exit();
   } 
   uint32_t *arguments = (uint32_t*)f->esp;
-  if (!are_valid_args(&arguments[1], 1) || !is_valid_ptr(arguments[2], arguments[3])){
+  int fd = (int)arguments[1];
+  char* buffer = (char*) arguments[2];
+  unsigned size = (unsigned) arguments[3];
+  if(!(is_user_vaddr(buffer) && is_user_vaddr(buffer + size - 1))){
+    f->eax = -1;
+    thread_exit();
+  }
+  if(page_table_get_page(thread_current()->page_table , buffer) == NULL && buffer < f->esp - 32){
     f->eax = -1;
     thread_exit();
   }
   lock_acquire(&filesystem_lock);
-  int fd = (int)arguments[1];
-  char* buffer = (char*) arguments[2];
-  unsigned size = (unsigned) arguments[3];
+  memset(buffer, 0 , size);
+  if (!are_valid_args(&arguments[1], 1) || !is_valid_ptr(arguments[2], arguments[3])){
+    f->eax = -1;
+    lock_release(&filesystem_lock);
+    thread_exit();
+  }
   if(fd == 0){ //Case when read from keybord  
     unsigned i;
     for(i = 0; i < size; i++){
@@ -435,7 +445,7 @@ void syscall_munmap_wrapper(int id) {
   }
 
   struct file * file;
-  file = node->mapped_file;
+  file = file_reopen(node->mapped_file);
 
   size_t i, file_len;
   file_len = file_length(file);

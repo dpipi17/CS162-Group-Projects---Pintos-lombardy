@@ -247,6 +247,7 @@ thread_create (const char *name, int priority,
   sema_init (&node->semaphore, 0);
   node->status = -1;
   node->successful = false;
+  node->finished = false;
   list_push_back (&running_thread ()->child_process_nodes, &node->elem);
   t->process_node = node;
 #endif

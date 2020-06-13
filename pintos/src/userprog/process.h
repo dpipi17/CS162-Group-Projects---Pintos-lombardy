@@ -14,7 +14,8 @@ struct process_node {
   pid_t pid;                    
   struct semaphore semaphore;    
   int status;          
-  bool successful;             
+  bool successful; 
+  bool finished;            
 };
 
 struct mmap_node {

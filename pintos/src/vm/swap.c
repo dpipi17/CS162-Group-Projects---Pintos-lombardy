@@ -1,5 +1,8 @@
 #include "vm/swap.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
+
+static struct lock lock;
 
 /**
  * This function called only once and it inits swap table.
@@ -10,6 +13,8 @@ void swap_init() {
     size_t bit_map_size = block_size(global_swap_block);
     swap_blocks_bitmap = bitmap_create(bit_map_size);
     bitmap_set_all(swap_blocks_bitmap, true);
+
+    lock_init(&lock);
 }
 
 /**
@@ -19,11 +24,13 @@ void swap_init() {
  * after all, function frees 8 blocks started from index in swap slot. 
  */
 void swap_read(size_t index, void * frame) {
+    lock_acquire(&lock); 
     size_t i;
     for (i = 0; i < 8; i++) {
         block_read(global_swap_block, index + i, frame + (i * BLOCK_SECTOR_SIZE));
     }
     update_bitmap(index, true);
+    lock_release(&lock); 
 }
 
 /**
@@ -33,6 +40,7 @@ void swap_read(size_t index, void * frame) {
  * after all, function marks 8 blocks started from index in swap slot as used. 
  */
 size_t swap_write(void * frame) {
+    lock_acquire(&lock); 
     size_t result_index;
     result_index = bitmap_scan(swap_blocks_bitmap, 0, 8, true);
 
@@ -45,7 +53,7 @@ size_t swap_write(void * frame) {
         block_write(global_swap_block, result_index + i, frame + (i * BLOCK_SECTOR_SIZE));
     }
     update_bitmap(result_index, false);
-
+    lock_release(&lock);
     return result_index;
 }
 
@@ -53,7 +61,9 @@ size_t swap_write(void * frame) {
  * This function frees memory blocks started from index.
  */
 void swap_free(size_t index) {
+    lock_acquire(&lock); 
     update_bitmap(index, true);
+    lock_release(&lock);
 }
 
 /**

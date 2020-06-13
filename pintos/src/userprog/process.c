@@ -160,7 +160,9 @@ process_wait (tid_t child_tid UNUSED)
   if (child_process == NULL) return -1;
 
   int result;
-  sema_down (&child_process->semaphore);
+  if (!child_process->finished) {
+    sema_down (&child_process->semaphore);
+  }
   result = child_process->status;
   list_remove (&child_process->elem);
   return result;
@@ -207,12 +209,17 @@ process_exit (void)
   struct list_elem * e;
   while (!list_empty (&cur->child_process_nodes)) {
     e = list_pop_back (&cur->child_process_nodes);
-    free (list_entry (e, struct process_node, elem));
+    struct process_node * child_node = list_entry (e, struct process_node, elem);
+
+    if (child_node->finished) {
+      free (child_node);
+    }
   }
 
   file_close(cur->exec_file);
   
   printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
+  cur->process_node->finished = true;
   sema_up (&cur->process_node->semaphore);
 }
 
@@ -574,8 +581,13 @@ install_page (void *upage, void *kpage, bool writable)
   #ifdef VM 
   bool res = pagedir_get_page(t->pagedir, upage) == NULL && 
         pagedir_set_page(t->pagedir, upage, kpage, writable);
-  return  (page_table_get_page(t->page_table, upage) == NULL) &&
+  res = (page_table_get_page(t->page_table, upage) == NULL) &&
     page_table_set_page(t->page_table, upage, kpage) && res;
+  
+  if (res) {
+    change_evict_status(kpage, false);
+  }
+  return res;
  
   #else
   return (pagedir_get_page(t->pagedir, upage) == NULL &&

@@ -5,7 +5,8 @@
 #include "threads/palloc.h"
 
 struct frame_table_elem{
-    struct hash_elem helem;    
+    struct hash_elem helem;   
+    bool not_evict; 
     void *frame;
     void *upage;
     struct thread *t;      
@@ -17,5 +18,6 @@ void frame_init(void);
 void free_frame(void* frame);
 void* allocate_frame(enum palloc_flags flags, void* upage);
 void* evict_frame(void* upage);
+void change_evict_status(void * frame, bool new_status);
 
 #endif

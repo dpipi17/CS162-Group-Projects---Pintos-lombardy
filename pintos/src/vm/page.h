@@ -18,7 +18,6 @@ struct page_table_elem{
     struct file * file; 
     size_t offset;
     size_t read_bytes_size;
-    bool not_evict;
 };
 
 struct hash * page_table_init(void);

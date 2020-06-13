@@ -272,7 +272,18 @@ void syscall_read(struct intr_frame *f UNUSED){
       lock_release(&filesystem_lock);
       return;
     }
+
+    void * pg;
+    void * frame;
+    for (pg = pg_round_down(buffer); pg < buffer + size; pg += PGSIZE) {
+      frame = page_table_get_page(thread_current()->page_table, pg);
+      change_evict_status(frame, true);
+    }
     f->eax = file_read(file_node->file, buffer, size);
+    for (pg = pg_round_down(buffer); pg < buffer + size; pg += PGSIZE) {
+      frame = page_table_get_page(thread_current()->page_table, pg);
+      change_evict_status(frame, false);
+    }
   }
   lock_release(&filesystem_lock);
 }
@@ -298,7 +309,17 @@ void syscall_write(struct intr_frame *f) {
   } else {
     struct file_node* file_node = get_file_node_from_fd(fd);
     if (file_node != NULL) {
+      void * pg;
+      void * frame;
+      for (pg = pg_round_down(buff); pg < buff + size; pg += PGSIZE) {
+        frame = page_table_get_page(thread_current()->page_table, pg);
+        change_evict_status(frame, true);
+      }
       f->eax = file_write(file_node->file, buff, size);
+      for (pg = pg_round_down(buff); pg < buff + size; pg += PGSIZE) {
+        frame = page_table_get_page(thread_current()->page_table, pg);
+        change_evict_status(frame, false);
+      }
     } else {
       f->eax = -1;
     }

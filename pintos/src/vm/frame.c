@@ -44,6 +44,7 @@ void* allocate_frame(enum palloc_flags flags, void* upage){
     elem->t = thread_current();
     elem->frame = frame_page;
     elem->upage = upage;
+    elem->not_evict = true;
     hash_insert(&frame_table, &elem->helem);
     lock_release(&lock);
     return frame_page;
@@ -51,6 +52,9 @@ void* allocate_frame(enum palloc_flags flags, void* upage){
 
 void* evict_frame(void* upage){
     struct frame_table_elem* elem = frame_to_evict();
+    if (elem == NULL) {
+        return NULL;
+    }
     size_t swap_index = swap_write(elem->frame);
     page_table_evict_page(elem->t->page_table, elem->t->pagedir, elem->upage, swap_index); 
     elem->t = thread_current();
@@ -71,14 +75,30 @@ struct frame_table_elem* frame_to_evict(){
                 continue;
             }
 
-            struct page_table_elem * page_table_elem = search_in_table(elem->t->page_table, elem->upage);
-            if (page_table_elem->not_evict) {
+            // struct page_table_elem * page_table_elem = search_in_table(elem->t->page_table, elem->upage);
+            // if (page_table_elem->not_evict) {
+            //     continue;
+            // }
+            if (elem->not_evict) {
                 continue;
             }
 
             return elem;
         }while (hash_next (&i));
     }
+    return NULL;
+}
+
+void change_evict_status(void * frame, bool new_status) {
+    lock_acquire(&lock); 
+    struct frame_table_elem to_find;
+    to_find.frame = frame;
+    struct hash_elem *h = hash_find(&frame_table, &(to_find.helem));
+    if (h != NULL) {
+        struct frame_table_elem *elem = hash_entry(h, struct frame_table_elem, helem);
+        elem->not_evict = new_status;
+    }
+    lock_release(&lock); 
 }
 
 static unsigned hash_func(const struct hash_elem *elem, void *aux UNUSED){

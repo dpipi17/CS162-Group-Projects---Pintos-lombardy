@@ -173,6 +173,7 @@ page_fault (struct intr_frame *f)
     frame = allocate_frame(PAL_USER | PAL_ZERO, pg);
     page_table_set_page(thread_current()->page_table, pg, frame);
     pagedir_set_page(thread_current()->pagedir, pg, frame, true);
+	change_evict_status(frame, false);
   }
   if(page_table_get_page(thread_current()->page_table, pg) == NULL) {
     goto panic_kill;
@@ -192,49 +193,3 @@ panic_kill:
 			write ? "writing" : "reading", user ? "user" : "kernel");
 	kill(f);
 }
-
-
-// #ifdef VM
-// 	if (!user) {
-// 		goto panic_kill;
-// 	}
-
-// 	if (fault_addr == NULL || is_kernel_vaddr(fault_addr)) {
-// 		goto panic_kill;
-// 	}
-
-// 	void* pg = pg_round_down(fault_addr);
-// 	if (write && pagedir_get_page(thread_current()->pagedir, pg)){
-// 		goto panic_kill;
-// 	}
-
-// 	void* frame = page_table_get_page(thread_current()->page_table, pg);
-// 	if (frame != NULL) {
-// 		return;
-// 	}
-
-// 	if (pg < PHYS_BASE - (1024 * 1024) || fault_addr < (char*)f->esp - 32) {
-// 		goto panic_kill;
-// 	}
-
-// 	frame = allocate_frame(PAL_USER | PAL_ZERO, pg);
-// 	page_table_set_page(thread_current()->page_table, pg, frame);
-// 	pagedir_set_page(thread_current()->pagedir, pg, frame, true);
-
-// 	if(page_table_get_page(thread_current()->page_table, pg) == NULL) {
-// 		goto panic_kill;
-// 	}
-// 	return;
-
-// panic_kill:
-// //   if(!user) { 
-// //     f->eip = (void *) f->eax;
-// //     f->eax = -1;
-// //     return;
-// //   }
-// #endif
-// 	printf("Page fault at %p: %s error %s page in %s context.\n",
-// 			fault_addr, not_present ? "not present" : "rights violation",
-// 			write ? "writing" : "reading", user ? "user" : "kernel");
-// 	kill(f);
-// }

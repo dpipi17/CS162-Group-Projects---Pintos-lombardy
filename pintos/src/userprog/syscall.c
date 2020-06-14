@@ -248,7 +248,8 @@ void syscall_read(struct intr_frame *f UNUSED){
     f->eax = -1;
     thread_exit();
   }
-  if(page_table_get_page(thread_current()->page_table , buffer) == NULL && buffer < f->esp - 32){
+  //if(page_table_get_page(thread_current()->page_table , buffer) == NULL && buffer < f->esp - 32){
+  if(wrapper_helper(false, 0, NULL, thread_current()->page_table, buffer) == NULL && buffer < f->esp - 32){
     f->eax = -1;
     thread_exit();
   }
@@ -276,12 +277,14 @@ void syscall_read(struct intr_frame *f UNUSED){
     void * pg;
     void * frame;
     for (pg = pg_round_down(buffer); pg < buffer + size; pg += PGSIZE) {
-      frame = page_table_get_page(thread_current()->page_table, pg);
+      //frame = page_table_get_page(thread_current()->page_table, pg);
+      frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, pg);
       change_evict_status(frame, true);
     }
     f->eax = file_read(file_node->file, buffer, size);
     for (pg = pg_round_down(buffer); pg < buffer + size; pg += PGSIZE) {
-      frame = page_table_get_page(thread_current()->page_table, pg);
+      //frame = page_table_get_page(thread_current()->page_table, pg);
+      frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, pg);
       change_evict_status(frame, false);
     }
   }
@@ -312,12 +315,14 @@ void syscall_write(struct intr_frame *f) {
       void * pg;
       void * frame;
       for (pg = pg_round_down(buff); pg < buff + size; pg += PGSIZE) {
-        frame = page_table_get_page(thread_current()->page_table, pg);
+        //frame = page_table_get_page(thread_current()->page_table, pg);
+        frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, pg);
         change_evict_status(frame, true);
       }
       f->eax = file_write(file_node->file, buff, size);
       for (pg = pg_round_down(buff); pg < buff + size; pg += PGSIZE) {
-        frame = page_table_get_page(thread_current()->page_table, pg);
+        //frame = page_table_get_page(thread_current()->page_table, pg);
+        frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, pg);
         change_evict_status(frame, false);
       }
     } else {
@@ -421,7 +426,8 @@ void syscall_mmap(struct intr_frame *f){
     curr_page = base_addr + i;
     
     void* frame;
-    frame = page_table_get_page(thread_current()->page_table, curr_page);
+    //frame = page_table_get_page(thread_current()->page_table, curr_page);
+    frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, curr_page);
     if(frame == NULL) frame = pagedir_get_page(thread_current()->pagedir , curr_page);
     // check if this page is free, else wrire -1 in f->eax and return
     if (frame != NULL) {
@@ -510,7 +516,8 @@ bool is_valid_ptr(void* pptr, size_t size) {
     
     #ifdef VM
     struct hash* page_table = current_thread->page_table;
-    if (page_table_get_page(page_table, ptr + i) == NULL){
+    //if (page_table_get_page(page_table, ptr + i) == NULL){
+    if (wrapper_helper(false, 0, NULL, page_table, ptr + i) == NULL) {
       res = false;
     }
     #endif

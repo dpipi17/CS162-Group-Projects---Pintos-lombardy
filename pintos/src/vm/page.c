@@ -57,6 +57,7 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
         hash_insert(table, new_elem);
         return true;
     } else {
+        PANIC("aq ra ginda ?");
         return false;
     }
 }
@@ -67,8 +68,11 @@ void *page_table_get_page (struct hash *table, const void *upage){
     if (elem == NULL)
         return NULL;
     
-    if (!elem->valid) {    
+    if (elem->kpage == NULL) {    
         elem->kpage = allocate_frame(PAL_USER | PAL_ZERO, upage);
+        if (elem->kpage == NULL) {
+            PANIC("shignit es null ar unda iyos");
+        }
         if (elem->swap_index != -1) {
             swap_read(elem->swap_index, elem->kpage);
             elem->swap_index = -1;
@@ -80,7 +84,12 @@ void *page_table_get_page (struct hash *table, const void *upage){
         
         elem->valid = true;
         pagedir_set_page(thread_current()->pagedir, upage, elem->kpage, elem->writeable);
-        change_evict_status(elem->kpage, false);
+    } else {
+        change_evict_status(elem->kpage, true);
+    }
+    
+    if (elem->kpage == NULL) {
+        PANIC("es null ar unda iyos");
     }
 
     return elem->kpage;
@@ -149,7 +158,9 @@ void page_table_unmap(struct hash * table, void *upage, size_t size) {
     upage = pg_round_down(upage);
     struct page_table_elem* elem = search_in_table(table , upage);
     if (elem == NULL) return;
-    page_table_get_page(table, upage);
+    //page_table_get_page(table, upage);
+    wrapper_helper(false, 0, NULL, table, upage);
+    
 
     if(elem->valid && elem->kpage != NULL){
         if(elem->dirty || pagedir_is_dirty(thread_current()->pagedir , upage)) {
@@ -159,11 +170,13 @@ void page_table_unmap(struct hash * table, void *upage, size_t size) {
     free_frame(elem->kpage);
     pagedir_clear_page(thread_current()->pagedir, upage);
     hash_delete(table, &(elem->helem));
+    free(elem);
 }
 
 void write_in_file(struct file* file, void* page , size_t offset, size_t size){
     file = file_reopen(file);
-    void * frame = page_table_get_page(thread_current()->page_table, page);
+    //void * frame = page_table_get_page(thread_current()->page_table, page);
+    void * frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, page);
     change_evict_status(frame, true);
     file_write_at(file, page , size, offset);
     change_evict_status(frame, false);

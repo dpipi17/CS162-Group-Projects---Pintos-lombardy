@@ -515,7 +515,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = allocate_frame(PAL_USER, upage);
+      // uint8_t *kpage = allocate_frame(PAL_USER, upage);
+      uint8_t *kpage = wrapper_helper(true, PAL_USER, upage, NULL, NULL);
       if (kpage == NULL)
         return false;
 
@@ -550,7 +551,8 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = allocate_frame(PAL_USER | PAL_ZERO, ((uint8_t *)PHYS_BASE) - PGSIZE);
+  // kpage = allocate_frame(PAL_USER | PAL_ZERO, ((uint8_t *)PHYS_BASE) - PGSIZE);
+  kpage = wrapper_helper(true, PAL_USER | PAL_ZERO, ((uint8_t *)PHYS_BASE) - PGSIZE, NULL, NULL);
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -581,7 +583,7 @@ install_page (void *upage, void *kpage, bool writable)
   #ifdef VM 
   bool res = pagedir_get_page(t->pagedir, upage) == NULL && 
         pagedir_set_page(t->pagedir, upage, kpage, writable);
-  res = (page_table_get_page(t->page_table, upage) == NULL) &&
+  res = (wrapper_helper(false, 0, NULL, t->page_table, upage) == NULL) &&
     page_table_set_page(t->page_table, upage, kpage) && res;
   
   if (res) {

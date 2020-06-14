@@ -164,8 +164,7 @@ page_fault (struct intr_frame *f)
 		goto panic_kill;
 	}
 	void* pg = pg_round_down(fault_addr);
-	//void* frame = page_table_get_page(thread_current()->page_table, pg);
-	void * frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, pg);
+	void * frame = get_frame_wrapper(false, 0, pg, thread_current()->page_table);
 	if (frame != NULL) {
 		return;
 	}
@@ -176,8 +175,7 @@ page_fault (struct intr_frame *f)
     pagedir_set_page(thread_current()->pagedir, pg, frame, true);
 	change_evict_status(frame, false);
   }
-  //if(page_table_get_page(thread_current()->page_table, pg) == NULL) {
-  if(wrapper_helper(false, 0, NULL, thread_current()->page_table, pg) == NULL) {
+  if(get_frame_wrapper(false, 0, pg, thread_current()->page_table) == NULL) {
     goto panic_kill;
   }
   return;

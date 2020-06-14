@@ -57,7 +57,6 @@ bool page_table_set_page (struct hash *table, void *upage, void *kpage){
         hash_insert(table, new_elem);
         return true;
     } else {
-        PANIC("aq ra ginda ?");
         return false;
     }
 }
@@ -70,9 +69,6 @@ void *page_table_get_page (struct hash *table, const void *upage){
     
     if (elem->kpage == NULL) {    
         elem->kpage = allocate_frame(PAL_USER | PAL_ZERO, upage);
-        if (elem->kpage == NULL) {
-            PANIC("shignit es null ar unda iyos");
-        }
         if (elem->swap_index != -1) {
             swap_read(elem->swap_index, elem->kpage);
             elem->swap_index = -1;
@@ -87,11 +83,6 @@ void *page_table_get_page (struct hash *table, const void *upage){
     } else {
         change_evict_status(elem->kpage, true);
     }
-    
-    if (elem->kpage == NULL) {
-        PANIC("es null ar unda iyos");
-    }
-
     return elem->kpage;
 }
 
@@ -158,8 +149,7 @@ void page_table_unmap(struct hash * table, void *upage, size_t size) {
     upage = pg_round_down(upage);
     struct page_table_elem* elem = search_in_table(table , upage);
     if (elem == NULL) return;
-    //page_table_get_page(table, upage);
-    wrapper_helper(false, 0, NULL, table, upage);
+    get_frame_wrapper(false, 0, upage, table);
     
 
     if(elem->valid && elem->kpage != NULL){
@@ -175,8 +165,7 @@ void page_table_unmap(struct hash * table, void *upage, size_t size) {
 
 void write_in_file(struct file* file, void* page , size_t offset, size_t size){
     file = file_reopen(file);
-    //void * frame = page_table_get_page(thread_current()->page_table, page);
-    void * frame = wrapper_helper(false, 0, NULL, thread_current()->page_table, page);
+    void * frame = get_frame_wrapper(false, 0, page, thread_current()->page_table);
     change_evict_status(frame, true);
     file_write_at(file, page , size, offset);
     change_evict_status(frame, false);
@@ -204,39 +193,3 @@ static bool less_func(const struct hash_elem * a, const struct hash_elem *b, voi
     struct page_table_elem *b_elem = hash_entry(b, struct page_table_elem, helem);
     return a_elem->upage < b_elem->upage;
 }
-
-/**
-cd .. && make clean && make && cd build/
-
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-parallel -a page-parallel -p tests/vm/child-linear -a child-linear --swap-size=4 -- -q  -f run page-parallel < /dev/null 2> tests/vm/page-parallel.errors > tests/vm/page-parallel.output
-perl -I../.. ../../tests/vm/page-parallel.ck tests/vm/page-parallel tests/vm/page-parallel.result
-
-pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-seq -a page-merge-seq -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-seq < /dev/null 2> tests/vm/page-merge-seq.errors > tests/vm/page-merge-seq.output
-perl -I../.. ../../tests/vm/page-merge-seq.ck tests/vm/page-merge-seq tests/vm/page-merge-seq.result
-
-pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-par -a page-merge-par -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-par < /dev/null 2> tests/vm/page-merge-par.errors > tests/vm/page-merge-par.output
-perl -I../.. ../../tests/vm/page-merge-par.ck tests/vm/page-merge-par tests/vm/page-merge-par.result
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-mm -a page-merge-mm -p tests/vm/child-qsort-mm -a child-qsort-mm --swap-size=4 -- -q  -f run page-merge-mm < /dev/null 2> tests/vm/page-merge-mm.errors > tests/vm/page-merge-mm.output
-perl -I../.. ../../tests/vm/page-merge-mm.ck tests/vm/page-merge-mm tests/vm/page-merge-mm.result
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-stk -a page-merge-stk -p tests/vm/child-qsort -a child-qsort --swap-size=4 -- -q  -f run page-merge-stk < /dev/null 2> tests/vm/page-merge-stk.errors > tests/vm/page-merge-stk.output
-perl -I../.. ../../tests/vm/page-merge-stk.ck tests/vm/page-merge-stk tests/vm/page-merge-stk.result
-
-
-
-cd .. && make clean && make && cd build/
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-parallel -a page-parallel -p tests/vm/child-linear -a child-linear --swap-size=4 -- -q  -f run page-parallel
-
-pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-seq -a page-merge-seq -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-seq
-
-pintos -v -k -T 600 --qemu  --filesys-size=2 -p tests/vm/page-merge-par -a page-merge-par -p tests/vm/child-sort -a child-sort --swap-size=4 -- -q  -f run page-merge-par
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-mm -a page-merge-mm -p tests/vm/child-qsort-mm -a child-qsort-mm --swap-size=4 -- -q  -f run page-merge-mm
-
-pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/page-merge-stk -a page-merge-stk -p tests/vm/child-qsort -a child-qsort --swap-size=4 -- -q  -f run page-merge-stk
-
-
-*/

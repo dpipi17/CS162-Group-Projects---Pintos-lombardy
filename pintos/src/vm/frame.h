@@ -19,6 +19,6 @@ void free_frame(void* frame);
 void* allocate_frame(enum palloc_flags flags, void* upage);
 void* evict_frame(void* upage);
 void change_evict_status(void * frame, bool new_status);
-void * wrapper_helper(bool allocate, enum palloc_flags flags, void* upage, struct hash *table, const void *upage2);
+void * get_frame_wrapper(bool allocate, enum palloc_flags flags, void* upage, struct hash *table);
 
 #endif

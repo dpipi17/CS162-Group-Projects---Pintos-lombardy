@@ -38,7 +38,6 @@ void free_frame(void* frame){
 }
 
 void* allocate_frame(enum palloc_flags flags, void* upage){
-    // lock_acquire(&lock);
     void *frame_page = palloc_get_page (PAL_USER | flags);
     if(frame_page == NULL) frame_page = evict_frame(upage);
     if(frame_page == NULL) PANIC("Swap is full, can not evict frame!!!");
@@ -48,7 +47,6 @@ void* allocate_frame(enum palloc_flags flags, void* upage){
     elem->upage = upage;
     elem->not_evict = true;
     hash_insert(&frame_table, &elem->helem);
-    // lock_release(&lock);
     return frame_page;
 }
 
@@ -77,10 +75,6 @@ struct frame_table_elem* frame_to_evict(){
                 continue;
             }
 
-            // struct page_table_elem * page_table_elem = search_in_table(elem->t->page_table, elem->upage);
-            // if (page_table_elem->not_evict) {
-            //     continue;
-            // }
             if (elem->not_evict) {
                 continue;
             }
@@ -116,14 +110,14 @@ static bool less_func(const struct hash_elem * a, const struct hash_elem *b, voi
     return a_elem->frame < b_elem->frame;
 }
 
-void * wrapper_helper(bool allocate, enum palloc_flags flags, void* upage, struct hash *table, const void *upage2) {
+void * get_frame_wrapper(bool allocate, enum palloc_flags flags, void* upage, struct hash *table) {
     if (!lock_held_by_current_thread(&lock))
         lock_acquire(&lock);
     
     if (allocate) {
         return allocate_frame(flags, upage);
     } else {
-        return page_table_get_page(table, upage2);
+        return page_table_get_page(table, upage);
     }
 
     if (lock_held_by_current_thread(&lock))

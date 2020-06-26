@@ -13,6 +13,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/malloc.h"
+#include "filesys/directory.h"
 #ifdef VM
 #include "vm/page.h"
 #include "vm/frame.h"
@@ -196,7 +197,7 @@ void syscall_remove(struct intr_frame *f UNUSED){
 void syscall_open(struct intr_frame *f UNUSED){
   if(!is_valid_ptr(f->esp , 2 * sizeof(int))) exit_with_error_code(f);
   uint32_t *arguments = (uint32_t*)f->esp;
-  char* filename = arguments[1];
+  char* filename = (char*)arguments[1];
   if(!is_valid_str(filename)) exit_with_error_code(f);
 
   lock_acquire(&filesystem_lock);
@@ -211,7 +212,12 @@ void syscall_open(struct intr_frame *f UNUSED){
   list_push_back(&(thread_current()->file_list) , &(new_node ->elem));
   new_node->fd = fd;
   new_node->file = file;
+  new_node->dir = NULL;
   f->eax = fd;
+  struct inode *inode = file_get_inode(file);
+  if(inode && is_directory(inode));
+    new_node->dir = dir_open(inode_reopen(inode));
+
   lock_release(&filesystem_lock);
 }
 
@@ -389,6 +395,7 @@ void syscall_close(struct intr_frame *f){
     lock_release(&filesystem_lock);
     return;
   }
+  dir_close(file_node->dir);
   list_remove(&(file_node->elem));
   free(file_node);
   lock_release(&filesystem_lock);

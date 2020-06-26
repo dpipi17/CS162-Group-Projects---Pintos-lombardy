@@ -174,6 +174,7 @@ struct file_node{
     struct list_elem elem;
     int fd;
     struct file* file;
+    struct dir* dir;
 };
 #endif /* threads/thread.h */
 

@@ -170,7 +170,7 @@ void syscall_create(struct intr_frame *f){
   unsigned initial_size = (unsigned) arguments[2];
   if(!is_valid_str(file)) exit_with_error_code(f);
   lock_acquire(&filesystem_lock);
-  f->eax = filesys_create(file, initial_size);
+  f->eax = filesys_create(file, initial_size, false);
   lock_release(&filesystem_lock);
 }
 

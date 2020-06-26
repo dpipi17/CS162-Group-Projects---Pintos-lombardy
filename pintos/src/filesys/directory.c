@@ -5,6 +5,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A directory. */
 struct dir
@@ -26,7 +27,7 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry));
+  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), true);
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -139,7 +140,7 @@ dir_lookup (const struct dir *dir, const char *name,
    Fails if NAME is invalid (i.e. too long) or a disk or memory
    error occurs. */
 bool
-dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
+dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is_dir)
 {
   struct dir_entry e;
   off_t ofs;
@@ -233,4 +234,48 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         }
     }
   return false;
+}
+
+void get_dir_and_file(char* path, char* file, char* dir){
+  int len = strlen(path);  
+  int ind = len - 1, filename_length = 0;
+  while(ind >= 0 && path[ind] == '/') ind--;
+  while(ind >= 0 && path[ind] != '/') {
+    ind--;
+    filename_length++;
+  }
+  memcpy(dir, path, ind + 1);
+  dir[ind + 1] = '\0';
+  memcpy(file, path + ind + 1, filename_length);
+  file[filename_length] = '\0';
+}
+
+bool is_absolute_path(char* path){
+  return strlen(path) && path[0] == '/';
+}
+struct dir *dir_open_with_path (char * _path){
+  int len = strlen(_path);
+  char path[len + 1];
+  strlcpy(path , _path , len + 1);
+
+  struct dir* dir;
+  // if(is_absolute_path(path)) dir = dir_open_root();
+  // else dir = dir_reopen(thread_current()->cwd);
+  dir = dir_open_root(); //open only root until mkdir impelemented
+
+  // char *token, *save_ptr;
+  // for (token = strtok_r (path, "/", &save_ptr); token != NULL;
+  //         token = strtok_r (NULL, "/", &save_ptr)){
+  //   struct inode *inode;
+  //   if(dir_lookup(dir, token, &inode)) {
+  //     struct dir *next = dir_open(inode);
+  //     dir_close(dir);
+  //     if(next) dir = next;
+  //     else return NULL;
+  //   }else{
+  //     dir_close(dir);
+  //     return NULL;
+  //   }
+  // }
+  return dir;
 }

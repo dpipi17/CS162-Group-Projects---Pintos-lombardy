@@ -49,6 +49,8 @@ syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process 
 #ifdef VM
               syscall_practice, syscall_mmap, syscall_munmap;
 #else
+              empty_function_first, 
+              empty_function_sec,
               syscall_practice; //Practice System Call
 #endif
               
@@ -531,13 +533,17 @@ void syscall_chdir(struct intr_frame *f){
   }
 }
 void syscall_mkdir(struct intr_frame *f){
-
+  uint32_t *arguments = (uint32_t*)f->esp;
+  //TODO: check arguments
+  char *dir_name = (char *)arguments[1];
+  bool result = filesys_create(dir_name, 0, true);
+  f->eax = result;
 }
 void syscall_readdir(struct intr_frame *f){
 
 }
 void syscall_isdir(struct intr_frame *f){
-
+  
 }
 void syscall_inumber(struct intr_frame *f){
   

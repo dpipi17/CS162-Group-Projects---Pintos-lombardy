@@ -44,6 +44,8 @@ typedef struct sycall_desc {
 syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process System Calls
               syscall_create, syscall_remove, syscall_open, syscall_filesize, //File System Calls
               syscall_read, syscall_write, syscall_seek, syscall_tell, syscall_close,
+              syscall_chdir, syscall_mkdir, syscall_readdir, syscall_isdir, syscall_inumber,
+              empty_function_first, empty_function_sec,
 #ifdef VM
               syscall_practice, syscall_mmap, syscall_munmap;
 #else
@@ -76,6 +78,14 @@ syscall_desc_t syscall_table[] = {
   {syscall_mmap},
   {syscall_munmap},
 #endif
+  //Project 4
+  {empty_function_first},
+  {empty_function_sec},
+  {syscall_chdir},
+  {syscall_mkdir},
+  {syscall_readdir},
+  {syscall_isdir},
+  {syscall_inumber}
 };
 
 /////////////////////////////////////
@@ -215,7 +225,7 @@ void syscall_open(struct intr_frame *f UNUSED){
   new_node->dir = NULL;
   f->eax = fd;
   struct inode *inode = file_get_inode(file);
-  if(inode && is_directory(inode));
+  if(inode && is_directory(inode))
     new_node->dir = dir_open(inode_reopen(inode));
 
   lock_release(&filesystem_lock);
@@ -506,7 +516,37 @@ void syscall_munmap(struct intr_frame *f){
 }
 #endif
 
+//Project 4
+void syscall_chdir(struct intr_frame *f){
+  uint32_t *arguments = (uint32_t*)f->esp;
+  //TODO: check arguments
+  char *dir_name = (char *)arguments[1];
+  struct dir* dir = dir_open_with_path(dir_name);
+  if(dir == NULL){
+    f->eax = 0; //Return false
+  } else {
+    dir_close (thread_current()->cwd); //Close previous dir
+    thread_current()->cwd = dir; //Set current working directory
+    f->eax = 1; //Return True
+  }
+}
+void syscall_mkdir(struct intr_frame *f){
 
+}
+void syscall_readdir(struct intr_frame *f){
+
+}
+void syscall_isdir(struct intr_frame *f){
+
+}
+void syscall_inumber(struct intr_frame *f){
+  
+}
+
+void empty_function_first(struct intr_frame *f){
+}
+void empty_function_sec(struct intr_frame *f){
+}
 //Helpers #############################################################################
 
 /* Checks whether given poiner is valid

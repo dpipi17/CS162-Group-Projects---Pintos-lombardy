@@ -122,9 +122,10 @@ struct thread
    int max_mmap_node_id;  
 #endif
                  
+   struct dir *cwd; //For Project 4
 
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
+   /* Owned by thread.c. */
+   unsigned magic;                     /* Detects stack overflow. */
   };
 
 /* If false (default), use round-robin scheduler.

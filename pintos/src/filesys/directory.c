@@ -256,7 +256,7 @@ bool is_absolute_path(char* path){
 struct dir *dir_open_with_path (char * _path){
   int len = strlen(_path);
   char path[len + 1];
-  strlcpy(path , _path , len + 1);
+  memcpy(path , _path , len + 1);
 
   struct dir* dir;
   // if(is_absolute_path(path)) dir = dir_open_root();

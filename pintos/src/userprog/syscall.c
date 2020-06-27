@@ -540,7 +540,28 @@ void syscall_mkdir(struct intr_frame *f){
   f->eax = result;
 }
 void syscall_readdir(struct intr_frame *f){
+  uint32_t *arguments = (uint32_t*)f->esp;
+  //TODO: check arguments
+  int fd = (int)arguments[1];
+  char *name = (char *)arguments[2];
+  bool result;
 
+  struct file_node* file_node = get_file_node_from_fd(fd);
+  if(file_node == NULL){
+    f->eax = 0;
+    return;
+  }
+  struct inode* inode = file_get_inode(file_node->file);
+   if(inode == NULL){
+    f->eax = 0;
+    return;
+  }
+  bool isdir = is_directory(inode);
+  if(!isdir){
+    f->eax = 0;
+    return;
+  }
+  result = dir_readdir(file_node->dir, name);
 }
 void syscall_isdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;

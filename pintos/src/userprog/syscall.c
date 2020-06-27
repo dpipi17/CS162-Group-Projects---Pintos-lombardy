@@ -543,10 +543,22 @@ void syscall_readdir(struct intr_frame *f){
 
 }
 void syscall_isdir(struct intr_frame *f){
-  
+  uint32_t *arguments = (uint32_t*)f->esp;
+  //TODO: check arguments
+  int fd = (int)arguments[1];
+  struct file_node* file_node = get_file_node_from_fd(fd);
+  struct inode* inode = file_get_inode(file_node->file);
+  bool isdir = is_directory(inode);
+  f->eax = isdir;
 }
 void syscall_inumber(struct intr_frame *f){
-  
+  uint32_t *arguments = (uint32_t*)f->esp;
+  //TODO: check arguments
+  int fd = (int)arguments[1];
+  struct file_node* file_node = get_file_node_from_fd(fd);
+  struct inode* inode = file_get_inode(file_node->file);
+  int result = (int) inode_get_inumber (inode);
+  f->eax = result;
 }
 
 void empty_function_first(struct intr_frame *f){

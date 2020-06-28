@@ -27,6 +27,11 @@
 #define free_frame(x) palloc_free_page(x)
 #endif
 
+struct process_info{
+  char* file_name;
+  struct thread* parent_thread;
+};
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static struct process_node * child_process_node (pid_t pid);
@@ -48,14 +53,19 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  struct process_info* info = palloc_get_page (0);
+  info->file_name = fn_copy;
+  info->parent_thread = thread_current();
   size_t executable_name_size = strcspn (file_name, " ");
   char * executable_name = malloc ((executable_name_size + 1) * sizeof (char));
   strlcpy (executable_name, file_name, executable_name_size + 1);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (executable_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  tid = thread_create (executable_name, PRI_DEFAULT, start_process, info);
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy);
+    palloc_free_page (info);
+  }
   free(executable_name);
 
   struct process_node * child_process = child_process_node (tid);
@@ -71,9 +81,10 @@ process_execute (const char *file_name)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *info_)
 {
-  char *file_name = file_name_;
+  struct process_info* info = (struct process_info*)info_;
+  char *file_name = info->file_name;
   struct intr_frame if_;
   bool success;
 
@@ -124,6 +135,10 @@ start_process (void *file_name_)
     int ra = 0;
     memcpy(if_.esp, &ra, 4);
   }
+
+  if (info->parent_thread != NULL && info->parent_thread->cwd != NULL) {
+    thread_current()->cwd = dir_reopen(info->parent_thread->cwd);
+  } else thread_current()->cwd = dir_open_root();
 
   //For debug
   //hex_dump(0, if_.esp, 100, true);
@@ -218,6 +233,8 @@ process_exit (void)
 
   file_close(cur->exec_file);
   
+  if(cur->cwd) dir_close (cur->cwd);
+
   printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
   cur->process_node->finished = true;
   sema_up (&cur->process_node->semaphore);

@@ -39,7 +39,7 @@ dir_open (struct inode *inode)
   if (inode != NULL && dir != NULL)
     {
       dir->inode = inode;
-      dir->pos = 0;
+      dir->pos = sizeof(struct dir_entry);
       return dir;
     }
   else
@@ -125,10 +125,18 @@ dir_lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  if (lookup (dir, name, &e, NULL))
+  if(inode_is_removed(dir->inode)) return false;
+  if(strcmp(name, "..") == 0){
+    inode_read_at (dir->inode, &e, sizeof e, 0);
     *inode = inode_open (e.inode_sector);
-  else
-    *inode = NULL;
+  }else if(strcmp(name, ".") == 0){
+    *inode = inode_reopen(dir->inode);
+  }else{
+    if (lookup (dir, name, &e, NULL))
+      *inode = inode_open (e.inode_sector);
+    else
+      *inode = NULL;
+  }
 
   return *inode != NULL;
 }
@@ -149,6 +157,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+  if(inode_is_removed(dir->inode)) return false;
   /* Check NAME for validity. */
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
@@ -156,6 +165,16 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
     goto done;
+
+  if (is_dir){
+    struct dir *new_dir = dir_open(inode_open(inode_sector));
+    e.inode_sector = inode_get_inumber(dir_get_inode(dir));
+    if (inode_write_at(new_dir->inode, &e, sizeof e, 0) != sizeof e) {
+      dir_close (new_dir);
+      goto done;
+    }
+    dir_close (new_dir);
+  }
 
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
@@ -177,6 +196,15 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
 
  done:
   return success;
+}
+
+bool dir_is_empty(struct dir* dir){
+  struct dir_entry e;
+  off_t ofs;
+  for (ofs = sizeof e; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e; ofs += sizeof e){
+    if (e.in_use) return false;
+  }
+  return true;
 }
 
 /* Removes any entry for NAME in DIR.
@@ -202,6 +230,13 @@ dir_remove (struct dir *dir, const char *name)
   if (inode == NULL)
     goto done;
 
+  if(is_directory(inode)){
+    struct dir* to_delete = dir_open(inode);
+    if(!dir_is_empty(to_delete)){
+      dir_close (to_delete);
+      goto done;
+    }else dir_close(to_delete);
+  }
   /* Erase directory entry. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)
@@ -240,9 +275,16 @@ void get_dir_and_file(char* path, char* file, char* dir){
   int len = strlen(path);  
   int ind = len - 1, filename_length = 0;
   while(ind >= 0 && path[ind] == '/') ind--;
-  while(ind >= 0 && path[ind] != '/') {
-    ind--;
-    filename_length++;
+  if(ind < 0) {
+    dir[0] = '/';
+    dir[1] = '\0';
+    file[0] = '\0';
+    return;
+  }else{
+    while(ind >= 0 && path[ind] != '/') {
+      ind--;
+      filename_length++;
+    }
   }
   memcpy(dir, path, ind + 1);
   dir[ind + 1] = '\0';
@@ -259,23 +301,22 @@ struct dir *dir_open_with_path (char * _path){
   memcpy(path , _path , len + 1);
 
   struct dir* dir;
-  // if(is_absolute_path(path)) dir = dir_open_root();
-  // else dir = dir_reopen(thread_current()->cwd);
-  dir = dir_open_root(); //open only root until mkdir impelemented
+  if(is_absolute_path(path) || thread_current()->cwd == NULL) dir = dir_open_root();
+  else dir = dir_reopen(thread_current()->cwd);
 
-  // char *token, *save_ptr;
-  // for (token = strtok_r (path, "/", &save_ptr); token != NULL;
-  //         token = strtok_r (NULL, "/", &save_ptr)){
-  //   struct inode *inode;
-  //   if(dir_lookup(dir, token, &inode)) {
-  //     struct dir *next = dir_open(inode);
-  //     dir_close(dir);
-  //     if(next) dir = next;
-  //     else return NULL;
-  //   }else{
-  //     dir_close(dir);
-  //     return NULL;
-  //   }
-  // }
+  char *token, *save_ptr;
+  for (token = strtok_r (path, "/", &save_ptr); token != NULL;
+          token = strtok_r (NULL, "/", &save_ptr)){
+    struct inode *inode;
+    if(dir_lookup(dir, token, &inode)) {
+      struct dir *next = dir_open(inode);
+      dir_close(dir);
+      if(next) dir = next;
+      else return NULL;
+    }else{
+      dir_close(dir);
+      return NULL;
+    }
+  }
   return dir;
 }

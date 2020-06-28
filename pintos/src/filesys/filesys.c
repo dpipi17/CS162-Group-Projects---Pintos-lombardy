@@ -76,12 +76,18 @@ filesys_open (const char *name)
   char dir_name[len + 1], filename[len + 1];
   get_dir_and_file(name, filename, dir_name);
   struct dir *dir = dir_open_with_path(dir_name);
+  if(dir == NULL) return NULL;
   struct inode *inode = NULL;
 
-  if (dir != NULL)
-    dir_lookup (dir, name, &inode);
-  dir_close (dir);
+  if(strlen(filename) == 0) {
+    inode = dir_get_inode(dir);
+  }else {
+    dir_lookup (dir, filename, &inode);
+    dir_close (dir);
+  }
 
+  if(inode == NULL || inode_is_removed(inode)) return NULL;
+  
   return file_open (inode);
 }
 
@@ -96,7 +102,7 @@ filesys_remove (const char *name)
   char dir_name[len + 1], filename[len + 1];
   get_dir_and_file(name, filename, dir_name);
   struct dir *dir = dir_open_with_path(dir_name);
-  bool success = dir != NULL && dir_remove (dir, name);
+  bool success = dir != NULL && dir_remove (dir, filename);
   dir_close (dir);
 
   return success;

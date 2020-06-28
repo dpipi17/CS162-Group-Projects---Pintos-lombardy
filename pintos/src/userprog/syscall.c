@@ -14,6 +14,7 @@
 #include "filesys/file.h"
 #include "threads/malloc.h"
 #include "filesys/directory.h"
+#include "filesys/inode.h"
 #ifdef VM
 #include "vm/page.h"
 #include "vm/frame.h"
@@ -331,6 +332,11 @@ void syscall_write(struct intr_frame *f) {
     f->eax = size;
   } else {
     struct file_node* file_node = get_file_node_from_fd(fd);
+    if(is_directory(file_get_inode(file_node->file))){
+      f->eax = -1;
+      lock_release(&filesystem_lock);
+      thread_exit();
+    }
     if (file_node != NULL) {
       #ifdef VM
       void * pg;
@@ -544,7 +550,6 @@ void syscall_readdir(struct intr_frame *f){
   //TODO: check arguments
   int fd = (int)arguments[1];
   char *name = (char *)arguments[2];
-  bool result;
 
   struct file_node* file_node = get_file_node_from_fd(fd);
   if(file_node == NULL){
@@ -561,7 +566,7 @@ void syscall_readdir(struct intr_frame *f){
     f->eax = 0;
     return;
   }
-  result = dir_readdir(file_node->dir, name);
+  f->eax = dir_readdir(file_node->dir, name);
 }
 void syscall_isdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;

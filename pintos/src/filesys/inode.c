@@ -102,8 +102,9 @@ bool inode_allocate (struct inode_disk* inode_disk, off_t length) {
   size_t cur_num_sectors = num_sectors_left < DIRECT_BLOCKS ? num_sectors_left : DIRECT_BLOCKS;
   size_t i;
   for (i = 0; i < cur_num_sectors; i++) {
-    if (!inode_block_allocate(&inode_disk->direct_blocks[i]))
-      return false;
+    if (!inode_disk->direct_blocks[i])
+      if (!inode_block_allocate(&inode_disk->direct_blocks[i]))
+        return false;
   }
   if ((num_sectors_left -= cur_num_sectors) == 0)
     return true;
@@ -128,10 +129,6 @@ bool inode_allocate (struct inode_disk* inode_disk, off_t length) {
 bool inode_block_allocate (block_sector_t* block_sector) {
   static char zeros[BLOCK_SECTOR_SIZE];
   
-  /* Sector already alocated */
-  if (*block_sector)
-    return false;
-  
   /* Could not alocate sector */
   if (!free_map_allocate(1, block_sector))
     return false;
@@ -141,16 +138,18 @@ bool inode_block_allocate (block_sector_t* block_sector) {
 }
 
 bool inode_indirect_blocks_allocate (block_sector_t* indirect_blocks_sector, size_t num_sectors) {
-  if (!inode_block_allocate(indirect_blocks_sector))
-    return false;
+  if (!(*indirect_blocks_sector))
+    if (!inode_block_allocate(indirect_blocks_sector))
+      return false;
   
   struct indirect_blocks_t indirect_blocks;
   cache_read(*indirect_blocks_sector, &indirect_blocks);
 
   size_t i;
   for (i = 0; i < num_sectors; i++) {
-    if (!inode_block_allocate(&indirect_blocks.blocks[i]))
-      return false;
+    if (!indirect_blocks.blocks[i])
+      if (!inode_block_allocate(&indirect_blocks.blocks[i]))
+        return false;
   }
 
   cache_write(*indirect_blocks_sector, &indirect_blocks);
@@ -158,8 +157,9 @@ bool inode_indirect_blocks_allocate (block_sector_t* indirect_blocks_sector, siz
 }
 
 bool inode_doubly_indirect_blocks_allocate (block_sector_t* doubly_indirect_blocks_sector, size_t num_sectors) {
-  if (!inode_block_allocate(doubly_indirect_blocks_sector))
-    return false;
+  if (!(*doubly_indirect_blocks_sector))
+    if (!inode_block_allocate(doubly_indirect_blocks_sector))
+      return false;
   
   struct indirect_blocks_t doubly_indirect_blocks;
   cache_read(*doubly_indirect_blocks_sector, &doubly_indirect_blocks);
@@ -433,6 +433,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   if (inode->deny_write_cnt)
     return 0;
+
+  if (offset + size > inode->data.length) {
+    if (!inode_allocate(&inode->data, offset + size)) {
+      return 0;
+    }
+
+    inode->data.length = offset + size;
+    cache_write(inode->sector, &inode->data);
+  }
 
   while (size > 0)
     {

@@ -295,6 +295,7 @@ void get_dir_and_file(char* path, char* file, char* dir){
 bool is_absolute_path(char* path){
   return strlen(path) && path[0] == '/';
 }
+
 struct dir *dir_open_with_path (char * _path){
   int len = strlen(_path);
   char path[len + 1];
@@ -318,5 +319,12 @@ struct dir *dir_open_with_path (char * _path){
       return NULL;
     }
   }
-  return dir;
+
+  struct inode * dir_inode = dir_get_inode(dir);
+  if (!inode_is_removed(dir_inode)) {
+    return dir;
+  }
+
+  dir_close(dir);
+  return NULL;
 }

@@ -178,6 +178,14 @@ void syscall_wait(struct intr_frame *f UNUSED){
  */
 void syscall_create(struct intr_frame *f){
   if(!is_valid_ptr(f->esp , 3 * sizeof(int))) exit_with_error_code(f);
+
+  void * page = palloc_get_page(0);
+  if (page == NULL) {
+    f->eax = 0;
+    return;
+  }
+  palloc_free_page(page);
+
   uint32_t *arguments = (uint32_t*)f->esp;
   char* file = (char*)arguments[1];
   unsigned initial_size = (unsigned) arguments[2];
@@ -332,12 +340,12 @@ void syscall_write(struct intr_frame *f) {
     f->eax = size;
   } else {
     struct file_node* file_node = get_file_node_from_fd(fd);
-    if(is_directory(file_get_inode(file_node->file))){
-      f->eax = -1;
-      lock_release(&filesystem_lock);
-      thread_exit();
-    }
     if (file_node != NULL) {
+      if(is_directory(file_get_inode(file_node->file))) {
+        f->eax = -1;
+        lock_release(&filesystem_lock);
+        thread_exit();
+      }
       #ifdef VM
       void * pg;
       void * frame;
@@ -527,7 +535,8 @@ void syscall_munmap(struct intr_frame *f){
 //Project 4
 void syscall_chdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;
-  //TODO: check arguments
+  
+  lock_acquire(&filesystem_lock);
   char *dir_name = (char *)arguments[1];
   struct dir* dir = dir_open_with_path(dir_name);
   if(dir == NULL){
@@ -537,20 +546,32 @@ void syscall_chdir(struct intr_frame *f){
     thread_current()->cwd = dir; //Set current working directory
     f->eax = 1; //Return True
   }
+  lock_release(&filesystem_lock);
 }
+
 void syscall_mkdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;
-  //TODO: check arguments
+  
+  void * page = palloc_get_page(0);
+  if (page == NULL) {
+    f->eax = 0;
+    return;
+  }
+  palloc_free_page(page);
+
+  lock_acquire(&filesystem_lock);
   char *dir_name = (char *)arguments[1];
   bool result = filesys_create(dir_name, 0, true);
   f->eax = result;
+  lock_release(&filesystem_lock);
 }
+
 void syscall_readdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;
-  //TODO: check arguments
   int fd = (int)arguments[1];
   char *name = (char *)arguments[2];
 
+  lock_acquire(&filesystem_lock);
   struct file_node* file_node = get_file_node_from_fd(fd);
   if(file_node == NULL){
     f->eax = 0;
@@ -567,24 +588,31 @@ void syscall_readdir(struct intr_frame *f){
     return;
   }
   f->eax = dir_readdir(file_node->dir, name);
+  lock_release(&filesystem_lock);
 }
+
 void syscall_isdir(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;
-  //TODO: check arguments
+  
+  lock_acquire(&filesystem_lock);
   int fd = (int)arguments[1];
   struct file_node* file_node = get_file_node_from_fd(fd);
   struct inode* inode = file_get_inode(file_node->file);
   bool isdir = is_directory(inode);
   f->eax = isdir;
+  lock_release(&filesystem_lock);
 }
+
 void syscall_inumber(struct intr_frame *f){
   uint32_t *arguments = (uint32_t*)f->esp;
-  //TODO: check arguments
+  
+  lock_acquire(&filesystem_lock);
   int fd = (int)arguments[1];
   struct file_node* file_node = get_file_node_from_fd(fd);
   struct inode* inode = file_get_inode(file_node->file);
   int result = (int) inode_get_inumber (inode);
   f->eax = result;
+  lock_release(&filesystem_lock);
 }
 
 void empty_function_first(struct intr_frame *f){
@@ -682,3 +710,5 @@ void exit_with_error_code(struct intr_frame *f){
   thread_exit();
 }
 
+
+// perl -I../.. ../../tests/filesys/extended/dir-mkdir-persistence.ck tests/filesys/extended/dir-mkdir-persistence tests/filesys/extended/dir-mkdir-persistence.result

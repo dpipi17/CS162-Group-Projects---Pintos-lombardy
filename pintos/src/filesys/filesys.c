@@ -73,6 +73,7 @@ struct file *
 filesys_open (const char *name)
 {
   int len = strlen(name);
+  if (len == 0) return NULL;
   char dir_name[len + 1], filename[len + 1];
   get_dir_and_file(name, filename, dir_name);
   struct dir *dir = dir_open_with_path(dir_name);

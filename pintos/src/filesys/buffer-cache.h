@@ -19,7 +19,7 @@ void cache_init(void);
 
 void cache_read(block_sector_t sector, void * dst);
 
-size_t cache_write(block_sector_t sector, void * src);
+void cache_write(block_sector_t sector, void * src);
 
 void cache_destroy(void);
 

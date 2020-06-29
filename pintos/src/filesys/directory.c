@@ -27,7 +27,21 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), true);
+  struct dir_entry entry;
+  entry.inode_sector = sector;
+
+  if(!inode_create(sector, entry_cnt * sizeof (struct dir_entry), true)) {
+    return false;
+  }
+
+  struct dir * directory = dir_open(inode_open(sector));
+  if (inode_write_at(directory->inode, &entry, sizeof entry, 0) != sizeof entry) {
+    dir_close(directory);
+    return false;
+  }
+
+  dir_close(directory);
+  return true;
 }
 
 /* Opens and returns the directory for the given INODE, of which

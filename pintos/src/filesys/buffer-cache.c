@@ -32,7 +32,7 @@ void cache_read(block_sector_t sector, void * dst) {
     lock_release(&lock);
 }
 
-size_t cache_write(block_sector_t sector, void * src) {
+void cache_write(block_sector_t sector, void * src) {
     lock_acquire(&lock);
     struct cache_node * node;
     node = get_cache_node(sector);
@@ -69,6 +69,7 @@ static struct cache_node * get_cache_node(block_sector_t sector) {
     for (index = 0; index < 64; index++) {
         if (cache_node_array[index].sector == -1) {
             cache_node_array[index].sector = sector;
+            block_read (fs_device, sector, cache_node_array[index].buff);
             return &cache_node_array[index];
         }
     }

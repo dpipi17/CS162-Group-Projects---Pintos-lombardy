@@ -75,12 +75,12 @@ byte_to_sector (const struct inode *inode, off_t pos)
     
     if (index < DIRECT_BLOCKS) {
       sector = inode_disk.direct_blocks[index];
-    } else if (DIRECT_BLOCKS + INDIRECT_BLOCKS) {
+    } else if (index < DIRECT_BLOCKS + INDIRECT_BLOCKS) {
       index -= DIRECT_BLOCKS;
       struct indirect_blocks_t indirect_blocks;
       cache_read(inode_disk.indirect_blocks, &indirect_blocks);
       sector = indirect_blocks.blocks[index];
-    } else {
+    } else if (index < DIRECT_BLOCKS + INDIRECT_BLOCKS + INDIRECT_BLOCKS * INDIRECT_BLOCKS) {
       index -= DIRECT_BLOCKS + INDIRECT_BLOCKS;
       struct indirect_blocks_t indirect_blocks;
       off_t double_indirect_index = index / INDIRECT_BLOCKS;

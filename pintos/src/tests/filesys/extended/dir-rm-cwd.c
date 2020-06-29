@@ -73,8 +73,3 @@ test_main (void)
     }
   CHECK (!readdir (a_fd0, name), "verify \"/a\" is empty");
 }
-
-
-
-
-// rm -f tmp.dsk && pintos-mkdisk tmp.dsk --filesys-size=2 && pintos -v -k -T 60 --qemu  --disk=tmp.dsk -p tests/filesys/extended/dir-rm-cwd -a dir-rm-cwd -p tests/filesys/extended/tar -a tar -- -q  -f run dir-rm-cwd

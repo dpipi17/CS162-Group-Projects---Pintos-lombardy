@@ -46,12 +46,10 @@ syscall_fun_t syscall_halt, syscall_exit, syscall_exec, syscall_wait, //Process 
               syscall_create, syscall_remove, syscall_open, syscall_filesize, //File System Calls
               syscall_read, syscall_write, syscall_seek, syscall_tell, syscall_close,
               syscall_chdir, syscall_mkdir, syscall_readdir, syscall_isdir, syscall_inumber,
-              empty_function_first, empty_function_sec,
+              empty_function,
 #ifdef VM
               syscall_practice, syscall_mmap, syscall_munmap;
 #else
-              empty_function_first, 
-              empty_function_sec,
               syscall_practice; //Practice System Call
 #endif
               
@@ -80,10 +78,10 @@ syscall_desc_t syscall_table[] = {
 #ifdef VM
   {syscall_mmap},
   {syscall_munmap},
+#else
+  {empty_function},
+  {empty_function},
 #endif
-  //Project 4
-  {empty_function_first},
-  {empty_function_sec},
   {syscall_chdir},
   {syscall_mkdir},
   {syscall_readdir},
@@ -341,11 +339,13 @@ void syscall_write(struct intr_frame *f) {
   } else {
     struct file_node* file_node = get_file_node_from_fd(fd);
     if (file_node != NULL) {
+      #ifdef FILESYS
       if(is_directory(file_get_inode(file_node->file))) {
         f->eax = -1;
         lock_release(&filesystem_lock);
         thread_exit();
       }
+      #endif
       #ifdef VM
       void * pg;
       void * frame;
@@ -403,7 +403,7 @@ void syscall_tell(struct intr_frame *f){
     lock_release(&filesystem_lock);
     return;
   }
-  file_tell (file_node->file);
+  f->eax = file_tell (file_node->file);
   
   lock_release(&filesystem_lock);
 }
@@ -575,16 +575,19 @@ void syscall_readdir(struct intr_frame *f){
   struct file_node* file_node = get_file_node_from_fd(fd);
   if(file_node == NULL){
     f->eax = 0;
+    lock_release(&filesystem_lock);
     return;
   }
   struct inode* inode = file_get_inode(file_node->file);
    if(inode == NULL){
     f->eax = 0;
+    lock_release(&filesystem_lock);
     return;
   }
   bool isdir = is_directory(inode);
   if(!isdir){
     f->eax = 0;
+    lock_release(&filesystem_lock);
     return;
   }
   f->eax = dir_readdir(file_node->dir, name);
@@ -615,10 +618,8 @@ void syscall_inumber(struct intr_frame *f){
   lock_release(&filesystem_lock);
 }
 
-void empty_function_first(struct intr_frame *f){
-}
-void empty_function_sec(struct intr_frame *f){
-}
+void empty_function(struct intr_frame *f){}
+
 //Helpers #############################################################################
 
 /* Checks whether given poiner is valid

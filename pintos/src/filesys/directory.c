@@ -125,6 +125,7 @@ dir_lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+#ifdef FILESYS
   if(inode_is_removed(dir->inode)) return false;
   if(strcmp(name, "..") == 0){
     inode_read_at (dir->inode, &e, sizeof e, 0);
@@ -132,11 +133,14 @@ dir_lookup (const struct dir *dir, const char *name,
   }else if(strcmp(name, ".") == 0){
     *inode = inode_reopen(dir->inode);
   }else{
+#endif
     if (lookup (dir, name, &e, NULL))
       *inode = inode_open (e.inode_sector);
     else
       *inode = NULL;
+#ifdef FILESYS
   }
+#endif
 
   return *inode != NULL;
 }
@@ -157,7 +161,9 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+#ifdef FILESYS
   if(inode_is_removed(dir->inode)) return false;
+#endif
   /* Check NAME for validity. */
   if (*name == '\0' || strlen (name) > NAME_MAX)
     return false;
@@ -166,6 +172,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
   if (lookup (dir, name, NULL, NULL))
     goto done;
 
+#ifdef FILESYS
   if (is_dir){
     struct dir *new_dir = dir_open(inode_open(inode_sector));
     e.inode_sector = inode_get_inumber(dir_get_inode(dir));
@@ -175,7 +182,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
     }
     dir_close (new_dir);
   }
-
+#endif
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
      current end-of-file.
@@ -229,7 +236,7 @@ dir_remove (struct dir *dir, const char *name)
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
     goto done;
-
+#ifdef FILESYS
   if(is_directory(inode)){
     struct dir* to_delete = dir_open(inode);
     if(!dir_is_empty(to_delete)){
@@ -237,6 +244,7 @@ dir_remove (struct dir *dir, const char *name)
       goto done;
     }else dir_close(to_delete);
   }
+#endif
   /* Erase directory entry. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)

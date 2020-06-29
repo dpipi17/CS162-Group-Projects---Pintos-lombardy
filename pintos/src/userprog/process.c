@@ -53,15 +53,21 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+#ifdef FILESYS
   struct process_info* info = palloc_get_page (0);
   info->file_name = fn_copy;
   info->parent_thread = thread_current();
+#endif
   size_t executable_name_size = strcspn (file_name, " ");
   char * executable_name = malloc ((executable_name_size + 1) * sizeof (char));
   strlcpy (executable_name, file_name, executable_name_size + 1);
 
   /* Create a new thread to execute FILE_NAME. */
+#ifdef FILESYS
   tid = thread_create (executable_name, PRI_DEFAULT, start_process, info);
+#else 
+  tid = thread_create (executable_name, PRI_DEFAULT, start_process, fn_copy);
+#endif
   if (tid == TID_ERROR){
     palloc_free_page (fn_copy);
     palloc_free_page (info);
@@ -83,8 +89,13 @@ process_execute (const char *file_name)
 static void
 start_process (void *info_)
 {
+char *file_name;
+#ifdef FILESYS
   struct process_info* info = (struct process_info*)info_;
-  char *file_name = info->file_name;
+  file_name = info->file_name;
+#else 
+  file_name = info_;
+#endif
   struct intr_frame if_;
   bool success;
 
@@ -136,15 +147,18 @@ start_process (void *info_)
     memcpy(if_.esp, &ra, 4);
   }
 
+#ifdef FILESYS
   if (info->parent_thread != NULL && info->parent_thread->cwd != NULL) {
     thread_current()->cwd = dir_reopen(info->parent_thread->cwd);
   } else thread_current()->cwd = dir_open_root();
+#endif
 
   //For debug
   //hex_dump(0, if_.esp, 100, true);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
+  palloc_free_page (info);
   if (!success)
     thread_exit ();
 
@@ -232,8 +246,10 @@ process_exit (void)
   }
 
   file_close(cur->exec_file);
-  
+
+#ifdef FILESYS
   if(cur->cwd) dir_close (cur->cwd);
+#endif
 
   printf("%s: exit(%d)\n", &cur->name, cur->process_node->status);
   cur->process_node->finished = true;
